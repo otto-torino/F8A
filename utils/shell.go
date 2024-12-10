@@ -16,6 +16,7 @@ func AddTextToOutput(text string, c color.Color, outputContainer *fyne.Container
 	t.TextSize = 18
 	t.TextStyle = fyne.TextStyle{Italic: true}
 	outputContainer.Add(t)
+	Scroll.ScrollToBottom()
 }
 
 func Shellout(command string, outputContainer *fyne.Container, clear bool) error {
