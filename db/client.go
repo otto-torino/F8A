@@ -71,4 +71,20 @@ has_htaccess INTEGER
 	if err != nil {
 		panic(err)
 	}
+
+	stmt = `
+ALTER TABLE apps ADD COLUMN current_dir_name TEXT;
+		`
+	_, err = client.C.Exec(stmt)
+	if err != nil {
+		// do nothing
+	}
+
+	stmt = `
+UPDATE apps SET current_dir_name = "current" WHERE current_dir_name IS NULL OR current_dir_name = "";
+		`
+	_, err = client.C.Exec(stmt)
+	if err != nil {
+		// do nothing
+	}
 }

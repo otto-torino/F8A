@@ -28,6 +28,10 @@ func MakeMainContent() *fyne.Container {
 		HandleHomeSection()
 	})
 
+	utils.Dispatcher.On(utils.AppUpdate, func(args ...interface{}) {
+		HandleHomeSection()
+	})
+
 	return mainContent
 }
 
