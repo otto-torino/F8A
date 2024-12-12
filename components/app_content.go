@@ -16,10 +16,12 @@ import (
 	"go.uber.org/zap"
 )
 
+var errorColor = color.RGBA{255, 0, 0, 255}
+
 func HandleAddWebApp() {
 	mainContent.RemoveAll()
 
-	errorText := canvas.NewText("", color.RGBA{255, 0, 0, 255})
+	errorText := canvas.NewText("", errorColor)
 
 	hasHtAccess := false
 	labelName := widget.NewLabel("App Name")
@@ -156,7 +158,8 @@ func HandleWebAppSection(id int) {
 
 	output := container.NewVBox()
 	background := canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 0, A: 255})
-	outputContainer := container.NewBorder(nil, nil, nil, nil, container.NewStack(background, container.NewScroll(output)))
+	utils.Scroll = container.NewScroll(output)
+	outputContainer := container.NewBorder(nil, nil, nil, nil, container.NewStack(background, utils.Scroll))
 
 	actionButtons := MakeActionButtons(app, output)
 
@@ -165,25 +168,44 @@ func HandleWebAppSection(id int) {
 
 func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.Container {
 
+	// Build Button
 	build := utils.MakeButton("Build", func() {
-		utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true)
+		if err := utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true); err != nil {
+			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
+			return
+		}
 	})
 
+	// Build Archive
 	buildArchive := utils.MakeButton("Build Archive", func() {
-		utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true)
-		utils.Shellout(fmt.Sprintf("cd %s && tar cvf dist.tar dist", app.LocalPath), outputContainer, false)
+		if err := utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true); err != nil {
+			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
+			return
+		}
+		if err := utils.Shellout(fmt.Sprintf("cd %s && tar cvf dist.tar dist", app.LocalPath), outputContainer, false); err != nil {
+			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
+			return
+		}
 	})
 
+	// Local revision button
 	gitLocaleRev := utils.MakeButton("Git Local Revision", func() {
-		utils.Shellout(fmt.Sprintf("cd %s && git rev-parse --short HEAD", app.LocalPath), outputContainer, true)
+		if err := utils.Shellout(fmt.Sprintf("cd %s && git rev-parse --short HEAD", app.LocalPath), outputContainer, true); err != nil {
+			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
+			return
+		}
 	})
 
+	// Remote revision button
 	gitRemoteRev := utils.MakeButton("Git Remote Revision", func() {
-		utils.Shellout(fmt.Sprintf("ssh otto@%s readlink -f %s/%s", app.RemoteHost, app.RemotePath, app.CurrentDirName), outputContainer, true)
+		if err := utils.Shellout(fmt.Sprintf("ssh otto@%s readlink -f %s/%s", app.RemoteHost, app.RemotePath, app.CurrentDirName), outputContainer, true); err != nil {
+			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
+			return
+		}
 	})
 
+	// Deploy button
 	deploy := utils.MakeButton("Deploy", func() {
-
 		out, err := exec.Command("bash", "-c", "cd "+app.LocalPath+" && git rev-parse --short HEAD").Output()
 		if err != nil {
 			fmt.Println(err)
@@ -191,22 +213,60 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.C
 		commitHash := string(out)[0:7]
 
 		utils.AddTextToOutput("Deploying revision "+commitHash, color.RGBA{R: 255, G: 153, B: 0, A: 255}, outputContainer)
-		utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true)
-		utils.Shellout(fmt.Sprintf("cd %s && tar cvf %s.tar dist", app.LocalPath, commitHash), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("scp %s/%s.tar otto@%s:%s", app.LocalPath, commitHash, app.RemoteHost, app.RemotePath), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("ssh otto@%s rm -r %s/previous", app.RemoteHost, app.RemotePath), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/previous", app.RemoteHost, app.RemotePath, app.CurrentDirName, app.RemotePath), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("ssh otto@%s tar xvf %s/%s.tar -C %s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/dist %s/%s", app.RemoteHost, app.RemotePath, app.RemotePath, commitHash), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("ssh otto@%s ln -s %s/%s %s/%s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath, app.CurrentDirName), outputContainer, false)
-		utils.Shellout(fmt.Sprintf("ssh otto@%s rm %s/%s.tar", app.RemoteHost, app.RemotePath, commitHash), outputContainer, false)
-		if app.HasHtAccess == 1 {
-			utils.Shellout(fmt.Sprintf("ssh otto@%s cp %s/.htaccess %s/%s", app.RemoteHost, app.RemotePath, app.RemotePath, app.CurrentDirName), outputContainer, false)
+		err = deploy(app, outputContainer, commitHash)
+		if err != nil {
+			utils.AddTextToOutput("Deployment failed for revision "+commitHash, errorColor, outputContainer)
+			return
 		}
 		utils.AddTextToOutput("Deployed revision "+commitHash, color.RGBA{R: 0, G: 255, B: 0, A: 255}, outputContainer)
 	})
 
 	return container.NewHBox(build, buildArchive, gitLocaleRev, gitRemoteRev, deploy)
+}
+
+func deploy(app *models.App, outputContainer *fyne.Container, commitHash string) error {
+	if err := utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("cd %s && tar cvf %s.tar dist", app.LocalPath, commitHash), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("scp %s/%s.tar otto@%s:%s", app.LocalPath, commitHash, app.RemoteHost, app.RemotePath), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s rm -r %s/previous", app.RemoteHost, app.RemotePath), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/previous", app.RemoteHost, app.RemotePath, app.CurrentDirName, app.RemotePath), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s tar xvf %s/%s.tar -C %s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/dist %s/%s", app.RemoteHost, app.RemotePath, app.RemotePath, commitHash), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s ln -s %s/%s %s/%s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath, app.CurrentDirName), outputContainer, false); err != nil {
+		return err
+	}
+	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s rm %s/%s.tar", app.RemoteHost, app.RemotePath, commitHash), outputContainer, false); err != nil {
+		return err
+	}
+	if app.HasHtAccess == 1 {
+		if err := utils.Shellout(
+			fmt.Sprintf("ssh otto@%s cp %s/.htaccess %s/%s", app.RemoteHost, app.RemotePath, app.RemotePath, app.CurrentDirName),
+			outputContainer,
+			false,
+		); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
