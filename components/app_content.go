@@ -1,9 +1,11 @@
 package components
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
 	"os/exec"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -190,18 +192,30 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.C
 
 	// Local revision button
 	gitLocaleRev := utils.MakeButton("Git Local Revision", func() {
-		if err := utils.Shellout(fmt.Sprintf("cd %s && git rev-parse --short HEAD", app.LocalPath), outputContainer, true); err != nil {
+		out, err := utils.Shell(fmt.Sprintf("cd %s && git rev-parse --short HEAD", app.LocalPath))
+		if err != nil {
 			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
 			return
 		}
+		utils.AddTextToOutput(fmt.Sprintf("Git Local Revision"), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outputContainer)
+		utils.AddTextToOutput(fmt.Sprintf("%s", (*out)[0]), color.RGBA{R: 0, G: 255, B: 0, A: 255}, outputContainer)
+		return
 	})
 
 	// Remote revision button
 	gitRemoteRev := utils.MakeButton("Git Remote Revision", func() {
-		if err := utils.Shellout(fmt.Sprintf("ssh otto@%s readlink -f %s/%s", app.RemoteHost, app.RemotePath, app.CurrentDirName), outputContainer, true); err != nil {
+		utils.AddTextToOutput(fmt.Sprintf("Retrieving Git Remote Revision..."), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outputContainer)
+		out, err := utils.Shell(fmt.Sprintf("ssh otto@%s readlink -f %s/%s", app.RemoteHost, app.RemotePath, app.CurrentDirName))
+		outputContainer.RemoveAll()
+		if err != nil {
 			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
 			return
 		}
+		utils.AddTextToOutput(fmt.Sprintf("Git Remote Revision"), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outputContainer)
+		o := (*out)[0]
+		rev := o[strings.LastIndex(o, "/")+1:]
+		utils.AddTextToOutput(fmt.Sprintf("%s", rev), color.RGBA{R: 0, G: 255, B: 0, A: 255}, outputContainer)
+		return
 	})
 
 	// Deploy button
@@ -225,6 +239,10 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.C
 }
 
 func deploy(app *models.App, outputContainer *fyne.Container, commitHash string) error {
+	if utils.CheckRemoteRevisionEqualsLocal(app) {
+		utils.AddTextToOutput("Revision already deployed", errorColor, outputContainer)
+		return errors.New("Revision already deployed")
+	}
 	if err := utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true); err != nil {
 		return err
 	}
