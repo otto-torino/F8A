@@ -191,7 +191,7 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.C
 	})
 
 	// Local revision button
-	gitLocaleRev := utils.MakeButton("Git Local Revision", func() {
+	gitLocaleRev := utils.MakeButton("Local Revision", func() {
 		out, err := utils.Shell(fmt.Sprintf("cd %s && git rev-parse --short HEAD", app.LocalPath))
 		if err != nil {
 			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
@@ -203,7 +203,7 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.C
 	})
 
 	// Remote revision button
-	gitRemoteRev := utils.MakeButton("Git Remote Revision", func() {
+	gitRemoteRev := utils.MakeButton("Remote Revision", func() {
 		utils.AddTextToOutput(fmt.Sprintf("Retrieving Git Remote Revision..."), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outputContainer)
 		out, err := utils.Shell(fmt.Sprintf("ssh otto@%s readlink -f %s/%s", app.RemoteHost, app.RemotePath, app.CurrentDirName))
 		outputContainer.RemoveAll()
