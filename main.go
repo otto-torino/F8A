@@ -11,6 +11,7 @@ import (
 	"github.com/otto-torino/f8a/db"
 	"github.com/otto-torino/f8a/logger"
 	"github.com/otto-torino/f8a/theme"
+	"github.com/otto-torino/f8a/utils"
 	"github.com/spf13/viper"
 )
 
@@ -38,8 +39,12 @@ func main() {
 	// Init database
 	db.InitDatabase()
 
+	registry := utils.Registry()
+
 	a := app.NewWithID("io.otto-torino.f8a")
 	w := a.NewWindow("Otto Frontend Apps Manager")
+	registry.Application = &a
+	registry.Window = &w
 
 	a.Settings().SetTheme(&theme.F8aTheme{})
 	w.SetMainMenu(components.MakeMenu(a, w))

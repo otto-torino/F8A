@@ -184,9 +184,7 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.C
 	deploy := utils.MakeButton("Deploy", commands.Deploy(app, outputContainer))
 
 	// Restore button
-	restore := utils.MakeButton("Restore Revision", func() {
-		return
-	})
+	restore := utils.MakeButton("Restore Revision", commands.Restore(app))
 
-	return container.NewHBox(build, buildArchive, gitLocaleRev, gitRemoteRev, deploy, restore)
+	return container.NewHBox(build, buildArchive, gitLocaleRev, gitRemoteRev, restore, deploy)
 }
