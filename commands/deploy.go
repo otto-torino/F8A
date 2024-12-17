@@ -88,25 +88,28 @@ func deploy(app *models.App, outputContainer *fyne.Container, commitHash string)
 func Restore(app *models.App) func() {
 	return func() {
 		background := canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 0, A: 255})
+		background.SetMinSize(fyne.NewSize(400, 80))
 		outInfo := container.NewVBox()
+		utils.Scroll = container.NewScroll(outInfo)
 
 		content := container.NewVBox()
-		c := container.NewBorder(container.NewStack(background, outInfo), nil, nil, nil, content)
+		c := container.NewBorder(container.NewStack(background, utils.Scroll), nil, nil, nil, container.NewScroll(content))
 
 		registry := utils.Registry()
-		dialog.ShowCustom("Restore revision", "Dismiss", c, *registry.Window)
+		d := dialog.NewCustom("Restore revision", "Dismiss", c, *registry.Window)
+		d.Show()
+		d.Resize(fyne.NewSize(400, 400))
 
-		utils.AddTextToOutput(fmt.Sprintf("Retrieving last 5 revisions..."), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outInfo)
+		utils.AddTextToOutput(fmt.Sprintf("Retrieving available revisions..."), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outInfo)
 		out, err := utils.Shell(fmt.Sprintf("ssh otto@%s ls -lst %s | grep -v previous | grep -v %s | tail -n +2 | awk '{print $7,$8,$9\" |\",$10}'", app.RemoteHost, app.RemotePath, app.CurrentDirName))
 		if err != nil {
 			utils.AddTextToOutput(err.Error(), errorColor, outInfo)
 			return
 		}
 
-		utils.AddTextToOutput(fmt.Sprintf("Please choose a revision to restore"), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outInfo)
-		fmt.Println(*out)
+		utils.AddTextToOutput(fmt.Sprintf("Please click a revision to restore it"), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outInfo)
 
-		for _, o := range (*out)[0:5] {
+		for _, o := range *out {
 			line := o
 			btn := utils.MakeButton(o, func() {
 				revision := line[strings.LastIndex(line, "|")+1:]
@@ -129,7 +132,6 @@ func Restore(app *models.App) func() {
 				utils.AddTextToOutput(fmt.Sprintf("Restored revision %s", revision), color.RGBA{R: 0, G: 255, B: 0, A: 255}, outInfo)
 			})
 			content.Add(btn)
-			content.Resize(fyne.NewSize(300, 20))
 		}
 
 	}
