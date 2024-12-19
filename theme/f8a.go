@@ -29,3 +29,10 @@ func (t F8aTheme) Size(name fyne.ThemeSizeName) float32 {
 	}
 	return theme.DefaultTheme().Size(name)
 }
+
+func (t F8aTheme) SidebarBg(variant fyne.ThemeVariant) color.Color {
+	if variant == theme.VariantLight {
+		return color.RGBA{R: 245, G: 245, B: 245, A: 255}
+	}
+	return color.RGBA{R: 33, G: 33, B: 33, A: 255}
+}

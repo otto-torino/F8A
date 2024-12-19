@@ -9,40 +9,40 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"github.com/otto-torino/f8a/models"
+	"github.com/otto-torino/f8a/theme"
 	"github.com/otto-torino/f8a/utils"
 )
 
-var sidebarContent *fyne.Container
+var navContent *fyne.Container
 
 func MakeSidebar(addCb func()) *fyne.Container {
+	// get theme variant
+	registry := utils.Registry()
+	themeVariant := (*registry.Application).Settings().ThemeVariant()
+	t := theme.F8aTheme{}
+
 	title := canvas.NewText("Apps", color.RGBA{R: 255, G: 153, B: 0, A: 255})
 	title.TextSize = 18
 	titleContainer := container.New(layout.NewVBoxLayout(), title)
 
-	// addButton := widget.NewButton("Add App", func() {
-	// 	utils.Dispatcher.Emit(utils.AppSelect, 0)
-	// 	addCb()
-	// })
+	navContent = container.New(layout.NewStackLayout())
+	UpdateNavContent()
 
-	sidebarContent = container.New(layout.NewStackLayout())
-	UpdateSidebarContent()
-
-	// background := canvas.NewRectangle(color.RGBA{R: 33, G: 33, B: 33, A: 255})
-	// background := canvas.NewRectangle(color.RGBA{R: 33, G: 33, B: 33, A: 255})
-	sidebar := container.NewPadded(container.NewBorder(titleContainer, nil, nil, nil, sidebarContent))
+	background := canvas.NewRectangle(t.SidebarBg(themeVariant))
+	sidebar := container.New(layout.NewStackLayout(), background, container.NewPadded(container.NewBorder(titleContainer, nil, nil, nil, navContent)))
 
 	utils.Dispatcher.On(utils.AppChange, func(args ...interface{}) {
-		UpdateSidebarContent()
+		UpdateNavContent()
 	})
 
 	utils.Dispatcher.On(utils.AppDelete, func(args ...interface{}) {
-		UpdateSidebarContent()
+		UpdateNavContent()
 	})
 
 	return sidebar
 }
 
-func UpdateSidebarContent() {
+func UpdateNavContent() {
 	webapps, err := models.GetApps()
 	if err != nil {
 		return
@@ -77,7 +77,7 @@ func UpdateSidebarContent() {
 		list.Select(index)
 	})
 
-	sidebarContent.RemoveAll()
-	sidebarContent.Add(list)
-	sidebarContent.Refresh()
+	navContent.RemoveAll()
+	navContent.Add(list)
+	navContent.Refresh()
 }
