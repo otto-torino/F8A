@@ -158,7 +158,7 @@ func HandleWebAppSection(id int) {
 
 	output := container.NewVBox()
 	background := canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 0, A: 255})
-	utils.Scroll = container.NewScroll(output)
+	utils.Scroll = container.NewScroll(container.New(layout.NewPaddedLayout(), output))
 	outputContainer := container.NewBorder(nil, nil, nil, nil, container.NewStack(background, utils.Scroll))
 
 	actionButtons := MakeActionButtons(app, output)

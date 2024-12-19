@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"github.com/otto-torino/f8a/models"
 	"github.com/otto-torino/f8a/utils"
 )
@@ -90,7 +91,7 @@ func Restore(app *models.App) func() {
 		background := canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 0, A: 255})
 		background.SetMinSize(fyne.NewSize(400, 80))
 		outInfo := container.NewVBox()
-		utils.Scroll = container.NewScroll(outInfo)
+		utils.Scroll = container.NewScroll(container.New(layout.NewPaddedLayout(), outInfo))
 
 		content := container.NewVBox()
 		c := container.NewBorder(container.NewStack(background, utils.Scroll), nil, nil, nil, container.NewScroll(content))
