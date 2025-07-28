@@ -28,6 +28,8 @@ func HandleAddWebApp() {
 	name := widget.NewEntry()
 	labelPath := widget.NewLabel("App Local Path")
 	localPath := widget.NewEntry()
+	labelDistDirName := widget.NewLabel("App Local Dist Dir Name")
+	localDistDirName := widget.NewEntry()
 	labelRemoteHost := widget.NewLabel("App Remote Host")
 	remoteHost := widget.NewEntry()
 	labelRemotePath := widget.NewLabel("App Remote Path")
@@ -40,7 +42,7 @@ func HandleAddWebApp() {
 		hasHtAccess = b
 		fmt.Println(hasHtAccess)
 	})
-	grid := container.New(layout.NewFormLayout(), labelName, name, labelPath, localPath, labelRemoteHost, remoteHost, labelRemotePath, remotePath, labelCurrentDirName, currentDirName, hasHtAccessLabel, hasHtAccessWidget)
+	grid := container.New(layout.NewFormLayout(), labelName, name, labelPath, localPath, labelDistDirName, localDistDirName, labelRemoteHost, remoteHost, labelRemotePath, remotePath, labelCurrentDirName, currentDirName, hasHtAccessLabel, hasHtAccessWidget)
 
 	addButton := widget.NewButton("Save", func() {
 		if name.Text == "" || localPath.Text == "" || remotePath.Text == "" || remoteHost.Text == "" {
@@ -48,7 +50,7 @@ func HandleAddWebApp() {
 			errorText.Refresh()
 			return
 		}
-		id, err := models.CreateApp(name.Text, localPath.Text, remoteHost.Text, remotePath.Text, currentDirName.Text, hasHtAccess)
+		id, err := models.CreateApp(name.Text, localPath.Text, localDistDirName.Text, remoteHost.Text, remotePath.Text, currentDirName.Text, hasHtAccess)
 		if err != nil {
 			errorText.Text = err.Error()
 			errorText.Refresh()
@@ -79,6 +81,9 @@ func HandleChangeWebApp(id int) {
 	labelPath := widget.NewLabel("App Local Path")
 	localPath := widget.NewEntry()
 	localPath.SetText(app.LocalPath)
+	labelDistDirName := widget.NewLabel("App Local Dist Dir Name")
+	localDistDirName := widget.NewEntry()
+	localDistDirName.SetText(app.LocalDistDirName)
 	labelRemoteHost := widget.NewLabel("App Remote Host")
 	remoteHost := widget.NewEntry()
 	remoteHost.SetText(app.RemoteHost)
@@ -94,7 +99,7 @@ func HandleChangeWebApp(id int) {
 		fmt.Println(hasHtAccess)
 	})
 	hasHtAccessWidget.SetChecked(hasHtAccess)
-	grid := container.New(layout.NewFormLayout(), labelName, name, labelPath, localPath, labelRemoteHost, remoteHost, labelRemotePath, remotePath, labelCurrentDirName, currentDirName, hasHtAccessLabel, hasHtAccessWidget)
+	grid := container.New(layout.NewFormLayout(), labelName, name, labelPath, localPath, labelDistDirName, localDistDirName, labelRemoteHost, remoteHost, labelRemotePath, remotePath, labelCurrentDirName, currentDirName, hasHtAccessLabel, hasHtAccessWidget)
 
 	changeButton := widget.NewButton("Save", func() {
 		if name.Text == "" || localPath.Text == "" || remotePath.Text == "" || remoteHost.Text == "" {
@@ -102,7 +107,7 @@ func HandleChangeWebApp(id int) {
 			errorText.Refresh()
 			return
 		}
-		err := models.UpdateApp(id, name.Text, localPath.Text, remoteHost.Text, remotePath.Text, currentDirName.Text, hasHtAccess)
+		err := models.UpdateApp(id, name.Text, localPath.Text, localDistDirName.Text, remoteHost.Text, remotePath.Text, currentDirName.Text, hasHtAccess)
 		if err != nil {
 			errorText.Text = err.Error()
 			errorText.Refresh()
@@ -140,6 +145,8 @@ func HandleWebAppSection(id int) {
 	name := widget.NewLabel(app.Name)
 	localPathLabel := widget.NewLabel("App Local Path")
 	localPath := widget.NewLabel(app.LocalPath)
+	localDistDirNameLabel := widget.NewLabel("App Local Dist Dir Name")
+	localDistDirName := widget.NewLabel(app.LocalDistDirName)
 	remoteHostLabel := widget.NewLabel("App Remote Host")
 	remoteHost := widget.NewLabel(app.RemoteHost)
 	remotePathLabel := widget.NewLabel("App Remote Path")
@@ -152,7 +159,7 @@ func HandleWebAppSection(id int) {
 		hasHtAccessStr = "yes"
 	}
 	hasHtAccess := widget.NewLabel(hasHtAccessStr)
-	infoGrid := container.New(layout.NewFormLayout(), nameLabel, name, localPathLabel, localPath, remoteHostLabel, remoteHost, remotePathLabel, remotePath, currentDirNameLabel, currentDirName, hasHtAccessLabel, hasHtAccess)
+	infoGrid := container.New(layout.NewFormLayout(), nameLabel, name, localPathLabel, localPath, localDistDirNameLabel, localDistDirName, remoteHostLabel, remoteHost, remotePathLabel, remotePath, currentDirNameLabel, currentDirName, hasHtAccessLabel, hasHtAccess)
 
 	top := container.NewVBox(header, infoGrid)
 
@@ -167,7 +174,6 @@ func HandleWebAppSection(id int) {
 }
 
 func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.Container {
-
 	// Build Button
 	build := utils.MakeButton("Build", commands.Build(app, outputContainer))
 

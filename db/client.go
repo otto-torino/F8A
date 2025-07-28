@@ -87,4 +87,20 @@ UPDATE apps SET current_dir_name = "current" WHERE current_dir_name IS NULL OR c
 	if err != nil {
 		// do nothing
 	}
+
+	stmt = `
+ALTER TABLE apps ADD COLUMN local_dist_dir_name TEXT;
+		`
+	_, err = client.C.Exec(stmt)
+	if err != nil {
+		// do nothing
+	}
+
+	stmt = `
+UPDATE apps SET local_dist_dir_name = "dist" WHERE local_dist_dir_name IS NULL OR local_dist_dir_name = "";
+		`
+	_, err = client.C.Exec(stmt)
+	if err != nil {
+		// do nothing
+	}
 }
