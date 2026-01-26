@@ -18,51 +18,57 @@ import (
 	"github.com/otto-torino/f8a/utils"
 )
 
-func Deploy(app *models.App, outputContainer *fyne.Container) func() {
-	return func() {
-		outputContainer.RemoveAll()
+func Deploy(app *models.App, outputContainer *fyne.Container, onComplete func()) (*progress.DeploymentProgress, func()) {
+	outputContainer.RemoveAll()
 
-		// Get commit hash
-		out, err := exec.Command("bash", "-c", "cd "+app.LocalPath+" && git rev-parse --short HEAD").Output()
-		if err != nil {
-			utils.AddTextToOutput("Failed to get commit hash: "+err.Error(), errorColor, outputContainer)
-			return
-		}
-		commitHash := strings.TrimSpace(string(out))
+	// Get commit hash
+	out, err := exec.Command("bash", "-c", "cd "+app.LocalPath+" && git rev-parse --short HEAD").Output()
+	if err != nil {
+		utils.AddTextToOutput("Failed to get commit hash: "+err.Error(), errorColor, outputContainer)
+		return nil, nil
+	}
+	commitHash := strings.TrimSpace(string(out))
 
-		utils.AddTextToOutput("Deploying revision "+commitHash, color.RGBA{R: 255, G: 153, B: 0, A: 255}, outputContainer)
+	// Create deployment record
+	deploymentID, err := models.CreateDeployment(app.ID, commitHash)
+	if err != nil {
+		utils.AddTextToOutput("Failed to create deployment record: "+err.Error(), errorColor, outputContainer)
+		return nil, nil
+	}
 
-		// Create deployment record
-		deploymentID, err := models.CreateDeployment(app.ID, commitHash)
-		if err != nil {
-			utils.AddTextToOutput("Failed to create deployment record: "+err.Error(), errorColor, outputContainer)
-			return
-		}
+	// Initialize progress tracker
+	tracker := progress.NewDeploymentProgress(deploymentID, app.ID, commitHash)
+	tracker.LoadAverageDurations()
 
-		// Initialize progress tracker
-		tracker := progress.NewDeploymentProgress(deploymentID, app.ID, commitHash)
-		tracker.LoadAverageDurations()
-		defer tracker.Close()
+	return tracker, func() {
+		go func() {
+			defer tracker.Close()
+			if onComplete != nil {
+				defer onComplete()
+			}
 
-		// Start deployment
-		startTime := time.Now()
-		err = deployWithProgress(app, outputContainer, commitHash, tracker)
-		duration := time.Since(startTime)
+			utils.AddTextToOutput("Deploying revision "+commitHash, color.RGBA{R: 255, G: 153, B: 0, A: 255}, outputContainer)
 
-		if err != nil {
-			utils.AddTextToOutput("Deployment failed for revision "+commitHash, errorColor, outputContainer)
-			errMsg := err.Error()
-			currentStep := tracker.CurrentStep
-			models.UpdateDeploymentStatus(deploymentID, "failed", &errMsg, &currentStep)
-			utils.SendFailureNotification(app.Name, tracker.CurrentStep)
-			return
-		}
+			// Start deployment
+			startTime := time.Now()
+			err = deployWithProgress(app, outputContainer, commitHash, tracker)
+			duration := time.Since(startTime)
 
-		utils.AddTextToOutput("Deployed revision "+commitHash, color.RGBA{R: 0, G: 255, B: 0, A: 255}, outputContainer)
-		models.UpdateDeploymentStatus(deploymentID, "success", nil, nil)
-		durationMs := duration.Milliseconds()
-		models.UpdateDeploymentDuration(deploymentID, &durationMs)
-		utils.SendSuccessNotification(app.Name, commitHash, duration)
+			if err != nil {
+				utils.AddTextToOutput("Deployment failed for revision "+commitHash, errorColor, outputContainer)
+				errMsg := err.Error()
+				currentStep := tracker.CurrentStep
+				models.UpdateDeploymentStatus(deploymentID, "failed", &errMsg, &currentStep)
+				utils.SendFailureNotification(app.Name, tracker.CurrentStep)
+				return
+			}
+
+			utils.AddTextToOutput("Deployed revision "+commitHash, color.RGBA{R: 0, G: 255, B: 0, A: 255}, outputContainer)
+			models.UpdateDeploymentStatus(deploymentID, "success", nil, nil)
+			durationMs := duration.Milliseconds()
+			models.UpdateDeploymentDuration(deploymentID, &durationMs)
+			utils.SendSuccessNotification(app.Name, commitHash, duration)
+		}()
 	}
 }
 

@@ -201,14 +201,30 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container, statusC
 	gitRemoteRev := utils.MakeButton("Remote Revision", commands.RemoteRevision(app, outputContainer))
 
 	// Deploy button
-	deployCallback := commands.Deploy(app, outputContainer)
-	deployWithRefresh := func() {
-		deployCallback()
+	onComplete := func() {
 		// Refresh status card and history after deployment
 		statusCard.UpdateStatus()
 		historyTimeline.LoadDeployments()
 	}
-	deploy := utils.MakeButton("Deploy", deployWithRefresh)
+
+	deploy := utils.MakeButton("Deploy", func() {
+		tracker, deployCallback := commands.Deploy(app, outputContainer, onComplete)
+		if tracker != nil && deployCallback != nil {
+			// Setup ProgressPanel
+			progressPanel := NewProgressPanel(app.ID, tracker.Steps)
+
+			// Re-setup outputContainer to show ProgressPanel
+			outputContainer.RemoveAll()
+			outputContainer.Add(progressPanel)
+			outputContainer.Refresh()
+
+			// Listen to updates
+			progressPanel.Listen(tracker.UpdateChannel)
+
+			// Start deployment
+			deployCallback()
+		}
+	})
 
 	// Restore button
 	restore := utils.MakeButton("Restore Revision", commands.Restore(app))
