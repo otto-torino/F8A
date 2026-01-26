@@ -16,14 +16,12 @@ type HistoryTimeline struct {
 	widget.BaseWidget
 	app       *models.App
 	container *fyne.Container
-	expanded  bool
 }
 
 func NewHistoryTimeline(app *models.App) *HistoryTimeline {
 	timeline := &HistoryTimeline{
 		app:       app,
 		container: container.NewVBox(),
-		expanded:  false,
 	}
 	timeline.ExtendBaseWidget(timeline)
 	timeline.LoadDeployments()
@@ -37,25 +35,15 @@ func (ht *HistoryTimeline) CreateRenderer() fyne.WidgetRenderer {
 func (ht *HistoryTimeline) LoadDeployments() {
 	ht.container.Objects = nil
 
-	// Header with toggle
-	buttonText := "Recent Deployments [+]"
-	if ht.expanded {
-		buttonText = "Recent Deployments [-]"
-	}
-	header := widget.NewButton(buttonText, func() {
-		ht.Toggle()
-	})
+	// Header
+	header := widget.NewLabelWithStyle("Deployment History", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	ht.container.Add(header)
-
-	if !ht.expanded {
-		ht.container.Refresh()
-		return
-	}
+	ht.container.Add(widget.NewSeparator())
 
 	// Get recent deployments
 	deployments, err := models.GetRecentDeployments(ht.app.ID, 10)
 	if err != nil || len(deployments) == 0 {
-		ht.container.Add(widget.NewLabel("No deployment history yet"))
+		ht.container.Add(widget.NewLabel("No deployments yet"))
 		ht.container.Refresh()
 		return
 	}
@@ -77,42 +65,37 @@ func (ht *HistoryTimeline) makeDeploymentEntry(d models.Deployment) *fyne.Contai
 		statusIcon = "[...]"
 	}
 
-	// Commit hash
+	// Commit hash with status
 	commitLabel := widget.NewLabel(fmt.Sprintf("%s %s", statusIcon, d.CommitHash))
 
 	// Time ago
 	timeAgo := formatTimeAgo(d.StartedAt)
-	timeLabel := widget.NewLabel(timeAgo)
 
 	// Duration or error
-	var durationLabel *widget.Label
+	var infoText string
 	if d.Status == "success" && d.TotalDurationMs != nil && *d.TotalDurationMs > 0 {
 		duration := time.Duration(*d.TotalDurationMs) * time.Millisecond
-		durationLabel = widget.NewLabel(fmt.Sprintf("(%s)", formatDuration(duration)))
+		infoText = fmt.Sprintf("%s (%s)", timeAgo, formatDuration(duration))
 	} else if d.Status == "failed" && d.ErrorStep != nil {
-		durationLabel = widget.NewLabel(fmt.Sprintf("failed at %s", *d.ErrorStep))
+		infoText = fmt.Sprintf("%s - failed at %s", timeAgo, *d.ErrorStep)
 	} else {
-		durationLabel = widget.NewLabel("running...")
+		infoText = fmt.Sprintf("%s - running...", timeAgo)
 	}
+	infoLabel := widget.NewLabel(infoText)
 
 	// View details button
-	detailsBtn := widget.NewButton("View details", func() {
+	detailsBtn := widget.NewButton("Details", func() {
 		ht.showDeploymentDetails(d)
 	})
 
-	entry := container.NewHBox(
+	entry := container.NewVBox(
 		commitLabel,
-		timeLabel,
-		durationLabel,
+		infoLabel,
 		detailsBtn,
+		widget.NewSeparator(),
 	)
 
 	return entry
-}
-
-func (ht *HistoryTimeline) Toggle() {
-	ht.expanded = !ht.expanded
-	ht.LoadDeployments()
 }
 
 func (ht *HistoryTimeline) showDeploymentDetails(d models.Deployment) {

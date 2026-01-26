@@ -175,10 +175,16 @@ func HandleWebAppSection(id int) {
 
 	actionButtons := MakeActionButtons(app, output)
 
-	// Add history timeline
-	historyTimeline := NewHistoryTimeline(app)
+	// Main content area with top section and output
+	centerContent := container.NewBorder(top, actionButtons, nil, nil, outputContainer)
 
-	mainContent.Add(container.NewBorder(top, container.NewVBox(actionButtons, historyTimeline), nil, nil, outputContainer))
+	// Right sidebar with history timeline
+	historyTimeline := NewHistoryTimeline(app)
+	historyScroll := container.NewScroll(historyTimeline)
+	historyScroll.SetMinSize(fyne.NewSize(300, 0))
+
+	// Combine center content with right sidebar
+	mainContent.Add(container.NewBorder(nil, nil, nil, historyScroll, centerContent))
 }
 
 func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.Container {
