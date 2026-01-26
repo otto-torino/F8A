@@ -5,6 +5,7 @@ import (
 	"errors"
 	"image/color"
 	"os/exec"
+	"sync"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -34,19 +35,28 @@ func Shellout(command string, outputContainer *fyne.Container, clear bool) error
 		return err
 	}
 
-	scanner := bufio.NewScanner(stderr)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		m := scanner.Text()
-		AddTextToOutput(m, color.White, outputContainer)
-	}
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	scanner = bufio.NewScanner(stdout)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		m := scanner.Text()
-		AddTextToOutput(m, color.White, outputContainer)
-	}
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			m := scanner.Text()
+			AddTextToOutput(m, color.White, outputContainer)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			m := scanner.Text()
+			AddTextToOutput(m, color.White, outputContainer)
+		}
+	}()
+
+	wg.Wait()
 	err = cmd.Wait()
 	if err != nil {
 		AddTextToOutput(err.Error(), color.RGBA{R: 255, G: 0, B: 0, A: 255}, outputContainer)

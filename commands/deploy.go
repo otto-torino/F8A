@@ -115,6 +115,8 @@ func deployWithProgress(app *models.App, outputContainer *fyne.Container, commit
 	tracker.StartStep(progress.StepExtract)
 	err = utils.Shellout(fmt.Sprintf("ssh otto@%s tar xvf %s/%s.tar -C %s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath), outputContainer, false)
 	if err == nil {
+		// Ensure destination is clean before move
+		utils.Shellout(fmt.Sprintf("ssh otto@%s rm -rf %s/%s", app.RemoteHost, app.RemotePath, commitHash), outputContainer, false)
 		err = utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/%s", app.RemoteHost, app.RemotePath, app.LocalDistDirName, app.RemotePath, commitHash), outputContainer, false)
 	}
 	tracker.CompleteStep(progress.StepExtract, err == nil, "", err)
@@ -123,7 +125,10 @@ func deployWithProgress(app *models.App, outputContainer *fyne.Container, commit
 	}
 
 	// Skip ls command (not part of critical path)
-	utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false)
+	err = utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false)
+	if err != nil {
+		return err
+	}
 
 	// Step 6: Activate
 	tracker.StartStep(progress.StepActivate)
