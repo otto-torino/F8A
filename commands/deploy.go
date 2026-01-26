@@ -51,7 +51,7 @@ func Deploy(app *models.App, outputContainer *fyne.Container, onComplete func())
 
 			// Start deployment
 			startTime := time.Now()
-			err = deployWithProgress(app, outputContainer, commitHash, tracker)
+			err = deployWithProgress(app, commitHash, tracker)
 			duration := time.Since(startTime)
 
 			if err != nil {
@@ -72,89 +72,87 @@ func Deploy(app *models.App, outputContainer *fyne.Container, onComplete func())
 	}
 }
 
-func deployWithProgress(app *models.App, outputContainer *fyne.Container, commitHash string, tracker *progress.DeploymentProgress) error {
+func deployWithProgress(app *models.App, commitHash string, tracker *progress.DeploymentProgress) error {
 	// Check if already deployed
 	if utils.CheckRemoteRevisionEqualsLocal(app) {
-		utils.AddTextToOutput("Revision already deployed", errorColor, outputContainer)
 		return errors.New("Revision already deployed")
 	}
 
 	// Step 1: Build
 	tracker.StartStep(progress.StepBuild)
-	err := utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true)
-	tracker.CompleteStep(progress.StepBuild, err == nil, "", err)
+	out, err := utils.ExecCommand(fmt.Sprintf("cd %s && yarn build", app.LocalPath))
+	tracker.CompleteStep(progress.StepBuild, err == nil, out, err)
 	if err != nil {
 		return err
 	}
 
 	// Step 2: Archive
 	tracker.StartStep(progress.StepArchive)
-	err = utils.Shellout(fmt.Sprintf("cd %s && tar cvf %s.tar %s", app.LocalPath, commitHash, app.LocalDistDirName), outputContainer, false)
-	tracker.CompleteStep(progress.StepArchive, err == nil, "", err)
+	out, err = utils.ExecCommand(fmt.Sprintf("cd %s && tar cvf %s.tar %s", app.LocalPath, commitHash, app.LocalDistDirName))
+	tracker.CompleteStep(progress.StepArchive, err == nil, out, err)
 	if err != nil {
 		return err
 	}
 
 	// Step 3: Upload
 	tracker.StartStep(progress.StepUpload)
-	err = utils.Shellout(fmt.Sprintf("scp %s/%s.tar otto@%s:%s", app.LocalPath, commitHash, app.RemoteHost, app.RemotePath), outputContainer, false)
-	tracker.CompleteStep(progress.StepUpload, err == nil, "", err)
+	out, err = utils.ExecCommand(fmt.Sprintf("scp %s/%s.tar otto@%s:%s", app.LocalPath, commitHash, app.RemoteHost, app.RemotePath))
+	tracker.CompleteStep(progress.StepUpload, err == nil, out, err)
 	if err != nil {
 		return err
 	}
 
 	// Skip ls command (not part of critical path)
-	utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false)
+	utils.ExecCommand(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath))
 
 	// Step 4: Backup
 	tracker.StartStep(progress.StepBackup)
-	err = utils.Shellout(fmt.Sprintf("ssh otto@%s rm -r %s/previous", app.RemoteHost, app.RemotePath), outputContainer, false)
+	out1, err := utils.ExecCommand(fmt.Sprintf("ssh otto@%s rm -r %s/previous", app.RemoteHost, app.RemotePath))
+	var out2 string
 	if err == nil {
-		err = utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/previous", app.RemoteHost, app.RemotePath, app.CurrentDirName, app.RemotePath), outputContainer, false)
+		out2, err = utils.ExecCommand(fmt.Sprintf("ssh otto@%s mv %s/%s %s/previous", app.RemoteHost, app.RemotePath, app.CurrentDirName, app.RemotePath))
 	}
-	tracker.CompleteStep(progress.StepBackup, err == nil, "", err)
+	tracker.CompleteStep(progress.StepBackup, err == nil, out1+"\n"+out2, err)
 	if err != nil {
 		return err
 	}
 
 	// Step 5: Extract
 	tracker.StartStep(progress.StepExtract)
-	err = utils.Shellout(fmt.Sprintf("ssh otto@%s tar xvf %s/%s.tar -C %s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath), outputContainer, false)
+	out1, err = utils.ExecCommand(fmt.Sprintf("ssh otto@%s tar xvf %s/%s.tar -C %s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath))
+	out2 = ""
+	var out3 string
 	if err == nil {
 		// Ensure destination is clean before move
-		utils.Shellout(fmt.Sprintf("ssh otto@%s rm -rf %s/%s", app.RemoteHost, app.RemotePath, commitHash), outputContainer, false)
-		err = utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/%s", app.RemoteHost, app.RemotePath, app.LocalDistDirName, app.RemotePath, commitHash), outputContainer, false)
+		out2, _ = utils.ExecCommand(fmt.Sprintf("ssh otto@%s rm -rf %s/%s", app.RemoteHost, app.RemotePath, commitHash))
+		out3, err = utils.ExecCommand(fmt.Sprintf("ssh otto@%s mv %s/%s %s/%s", app.RemoteHost, app.RemotePath, app.LocalDistDirName, app.RemotePath, commitHash))
 	}
-	tracker.CompleteStep(progress.StepExtract, err == nil, "", err)
+	tracker.CompleteStep(progress.StepExtract, err == nil, out1+"\n"+out2+"\n"+out3, err)
 	if err != nil {
 		return err
 	}
 
 	// Skip ls command (not part of critical path)
-	err = utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false)
-	if err != nil {
-		return err
-	}
+	utils.ExecCommand(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath))
 
 	// Step 6: Activate
 	tracker.StartStep(progress.StepActivate)
-	err = utils.Shellout(fmt.Sprintf("ssh otto@%s ln -s %s/%s %s/%s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath, app.CurrentDirName), outputContainer, false)
-	tracker.CompleteStep(progress.StepActivate, err == nil, "", err)
+	out, err = utils.ExecCommand(fmt.Sprintf("ssh otto@%s ln -s %s/%s %s/%s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath, app.CurrentDirName))
+	tracker.CompleteStep(progress.StepActivate, err == nil, out, err)
 	if err != nil {
 		return err
 	}
 
 	// Step 7: Cleanup
 	tracker.StartStep(progress.StepCleanup)
-	err = utils.Shellout(fmt.Sprintf("ssh otto@%s rm %s/%s.tar", app.RemoteHost, app.RemotePath, commitHash), outputContainer, false)
+	out1, err = utils.ExecCommand(fmt.Sprintf("ssh otto@%s rm %s/%s.tar", app.RemoteHost, app.RemotePath, commitHash))
+	out2 = ""
 	if err == nil && app.HasHtAccess == 1 {
-		err = utils.Shellout(
+		out2, err = utils.ExecCommand(
 			fmt.Sprintf("ssh otto@%s cp %s/.htaccess %s/%s", app.RemoteHost, app.RemotePath, app.RemotePath, app.CurrentDirName),
-			outputContainer,
-			false,
 		)
 	}
-	tracker.CompleteStep(progress.StepCleanup, err == nil, "", err)
+	tracker.CompleteStep(progress.StepCleanup, err == nil, out1+"\n"+out2, err)
 	if err != nil {
 		return err
 	}

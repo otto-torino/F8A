@@ -13,6 +13,12 @@ import (
 
 const ShellToUse = "bash"
 
+func ExecCommand(command string) (string, error) {
+	cmd := exec.Command(ShellToUse, "-c", command)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
 func AddTextToOutput(text string, c color.Color, outputContainer *fyne.Container) {
 	t := canvas.NewText(text, c)
 	t.TextSize = 14
