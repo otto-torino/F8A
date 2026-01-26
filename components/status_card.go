@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/otto-torino/f8a/models"
 )
@@ -21,6 +22,7 @@ type StatusCard struct {
 	statusText *canvas.Text
 	remoteText *canvas.Text
 	localText  *canvas.Text
+	refreshBtn *widget.Button
 }
 
 func NewStatusCard(app *models.App) *StatusCard {
@@ -40,6 +42,11 @@ func NewStatusCard(app *models.App) *StatusCard {
 		remoteText: remoteText,
 		localText:  localText,
 	}
+
+	card.refreshBtn = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
+		go card.UpdateStatus()
+	})
+
 	card.ExtendBaseWidget(card)
 	card.Refresh()
 	return card
@@ -48,8 +55,10 @@ func NewStatusCard(app *models.App) *StatusCard {
 func (sc *StatusCard) CreateRenderer() fyne.WidgetRenderer {
 	background := canvas.NewRectangle(color.RGBA{R: 40, G: 40, B: 40, A: 255})
 
+	header := container.NewHBox(sc.statusText, layout.NewSpacer(), sc.refreshBtn)
+
 	content := container.NewVBox(
-		sc.statusText,
+		header,
 		container.NewHBox(sc.localText, layout.NewSpacer()),
 		container.NewHBox(sc.remoteText, layout.NewSpacer()),
 	)
