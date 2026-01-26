@@ -175,7 +175,10 @@ func HandleWebAppSection(id int) {
 
 	actionButtons := MakeActionButtons(app, output)
 
-	mainContent.Add(container.NewBorder(top, actionButtons, nil, nil, outputContainer))
+	// Add history timeline
+	historyTimeline := NewHistoryTimeline(app)
+
+	mainContent.Add(container.NewBorder(top, container.NewVBox(actionButtons, historyTimeline), nil, nil, outputContainer))
 }
 
 func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.Container {
