@@ -99,9 +99,9 @@ func (sc *StatusCard) UpdateStatus() {
 		return
 	}
 
-	// Get last successful deployment
-	lastDeployment, err := models.GetLastSuccessfulDeployment(sc.app.ID)
-	if err != nil || lastDeployment == nil {
+	// Get remote revision from actual server
+	remoteHash := sc.getRemoteRevision()
+	if remoteHash == "" {
 		sc.statusText.Text = "Status: Never deployed"
 		sc.statusText.Color = color.RGBA{R: 255, G: 200, B: 100, A: 255}
 		sc.localText.Text = fmt.Sprintf("Local: %s", localHash[:7])
@@ -111,8 +111,6 @@ func (sc *StatusCard) UpdateStatus() {
 		sc.remoteText.Refresh()
 		return
 	}
-
-	remoteHash := lastDeployment.CommitHash
 
 	// Compare revisions
 	if localHash[:7] == remoteHash {
@@ -131,10 +129,14 @@ func (sc *StatusCard) UpdateStatus() {
 
 	// Set revision labels
 	sc.localText.Text = fmt.Sprintf("Local: %s", localHash[:7])
+	sc.remoteText.Text = fmt.Sprintf("Remote: %s", remoteHash)
 
-	// Format deployment time
-	timeAgo := formatTimeAgo(lastDeployment.StartedAt)
-	sc.remoteText.Text = fmt.Sprintf("Remote: %s (deployed %s)", remoteHash, timeAgo)
+	// Get deployment time from database if available
+	lastDeployment, err := models.GetLastSuccessfulDeployment(sc.app.ID)
+	if err == nil && lastDeployment != nil && lastDeployment.CommitHash == remoteHash {
+		timeAgo := formatTimeAgo(lastDeployment.StartedAt)
+		sc.remoteText.Text = fmt.Sprintf("Remote: %s (deployed %s)", remoteHash, timeAgo)
+	}
 
 	sc.statusText.Refresh()
 	sc.localText.Refresh()
@@ -147,6 +149,21 @@ func (sc *StatusCard) getLocalRevision() string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func (sc *StatusCard) getRemoteRevision() string {
+	cmd := fmt.Sprintf("ssh otto@%s readlink -f %s/%s", sc.app.RemoteHost, sc.app.RemotePath, sc.app.CurrentDirName)
+	out, err := exec.Command("bash", "-c", cmd).Output()
+	if err != nil {
+		return ""
+	}
+	fullPath := strings.TrimSpace(string(out))
+	// Extract revision from path (last part after /)
+	parts := strings.Split(fullPath, "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return ""
 }
 
 func (sc *StatusCard) getCommitsAhead(baseHash, headHash string) int {
