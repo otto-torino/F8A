@@ -54,6 +54,7 @@ func Deploy(app *models.App, outputContainer *fyne.Container) func() {
 			errMsg := err.Error()
 			currentStep := tracker.CurrentStep
 			models.UpdateDeploymentStatus(deploymentID, "failed", &errMsg, &currentStep)
+			utils.SendFailureNotification(app.Name, tracker.CurrentStep)
 			return
 		}
 
@@ -61,6 +62,7 @@ func Deploy(app *models.App, outputContainer *fyne.Container) func() {
 		models.UpdateDeploymentStatus(deploymentID, "success", nil, nil)
 		durationMs := duration.Milliseconds()
 		models.UpdateDeploymentDuration(deploymentID, &durationMs)
+		utils.SendSuccessNotification(app.Name, commitHash, duration)
 	}
 }
 

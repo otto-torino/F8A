@@ -173,21 +173,21 @@ func HandleWebAppSection(id int) {
 	utils.Scroll = container.NewScroll(container.New(layout.NewPaddedLayout(), output))
 	outputContainer := container.NewBorder(nil, nil, nil, nil, container.NewStack(background, utils.Scroll))
 
-	actionButtons := MakeActionButtons(app, output)
-
-	// Main content area with top section and output
-	centerContent := container.NewBorder(top, actionButtons, nil, nil, outputContainer)
-
 	// Right sidebar with history timeline
 	historyTimeline := NewHistoryTimeline(app)
 	historyScroll := container.NewScroll(historyTimeline)
 	historyScroll.SetMinSize(fyne.NewSize(300, 0))
 
+	actionButtons := MakeActionButtons(app, output, statusCard, historyTimeline)
+
+	// Main content area with top section and output
+	centerContent := container.NewBorder(top, actionButtons, nil, nil, outputContainer)
+
 	// Combine center content with right sidebar
 	mainContent.Add(container.NewBorder(nil, nil, nil, historyScroll, centerContent))
 }
 
-func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.Container {
+func MakeActionButtons(app *models.App, outputContainer *fyne.Container, statusCard *StatusCard, historyTimeline *HistoryTimeline) *fyne.Container {
 	// Build Button
 	build := utils.MakeButton("Build", commands.Build(app, outputContainer))
 
@@ -201,7 +201,14 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container) *fyne.C
 	gitRemoteRev := utils.MakeButton("Remote Revision", commands.RemoteRevision(app, outputContainer))
 
 	// Deploy button
-	deploy := utils.MakeButton("Deploy", commands.Deploy(app, outputContainer))
+	deployCallback := commands.Deploy(app, outputContainer)
+	deployWithRefresh := func() {
+		deployCallback()
+		// Refresh status card and history after deployment
+		statusCard.UpdateStatus()
+		historyTimeline.LoadDeployments()
+	}
+	deploy := utils.MakeButton("Deploy", deployWithRefresh)
 
 	// Restore button
 	restore := utils.MakeButton("Restore Revision", commands.Restore(app))
