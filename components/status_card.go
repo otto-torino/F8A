@@ -17,30 +17,28 @@ import (
 
 type StatusCard struct {
 	widget.BaseWidget
-	app          *models.App
-	statusText   *canvas.Text
-	remoteText   *canvas.Text
-	localText    *canvas.Text
-	actionButton *widget.Button
+	app        *models.App
+	statusText *canvas.Text
+	remoteText *canvas.Text
+	localText  *canvas.Text
 }
 
 func NewStatusCard(app *models.App) *StatusCard {
-	statusText := canvas.NewText("Status: Loading...", color.Black)
+	statusText := canvas.NewText("Status: Loading...", color.White)
 	statusText.TextSize = 14
 	statusText.TextStyle = fyne.TextStyle{Bold: true}
 
-	remoteText := canvas.NewText("Remote: ...", color.Black)
+	remoteText := canvas.NewText("Remote: ...", color.White)
 	remoteText.TextSize = 12
 
-	localText := canvas.NewText("Local: ...", color.Black)
+	localText := canvas.NewText("Local: ...", color.White)
 	localText.TextSize = 12
 
 	card := &StatusCard{
-		app:          app,
-		statusText:   statusText,
-		remoteText:   remoteText,
-		localText:    localText,
-		actionButton: widget.NewButton("Deploy", func() {}),
+		app:        app,
+		statusText: statusText,
+		remoteText: remoteText,
+		localText:  localText,
 	}
 	card.ExtendBaseWidget(card)
 	card.Refresh()
@@ -48,7 +46,7 @@ func NewStatusCard(app *models.App) *StatusCard {
 }
 
 func (sc *StatusCard) CreateRenderer() fyne.WidgetRenderer {
-	background := canvas.NewRectangle(color.RGBA{R: 220, G: 230, B: 240, A: 255})
+	background := canvas.NewRectangle(color.RGBA{R: 40, G: 40, B: 40, A: 255})
 
 	content := container.NewVBox(
 		sc.statusText,
@@ -56,12 +54,7 @@ func (sc *StatusCard) CreateRenderer() fyne.WidgetRenderer {
 		container.NewHBox(sc.remoteText, layout.NewSpacer()),
 	)
 
-	mainContent := container.NewBorder(
-		nil, nil, nil, sc.actionButton,
-		content,
-	)
-
-	padded := container.New(layout.NewPaddedLayout(), mainContent)
+	padded := container.New(layout.NewPaddedLayout(), content)
 
 	return &statusCardRenderer{
 		background: background,
@@ -101,7 +94,7 @@ func (sc *StatusCard) UpdateStatus() {
 	localHash := sc.getLocalRevision()
 	if localHash == "" {
 		sc.statusText.Text = "Status: Error getting local revision"
-		sc.statusText.Color = color.RGBA{R: 200, G: 0, B: 0, A: 255}
+		sc.statusText.Color = color.RGBA{R: 255, G: 100, B: 100, A: 255}
 		sc.statusText.Refresh()
 		return
 	}
@@ -109,11 +102,10 @@ func (sc *StatusCard) UpdateStatus() {
 	// Get last successful deployment
 	lastDeployment, err := models.GetLastSuccessfulDeployment(sc.app.ID)
 	if err != nil || lastDeployment == nil {
-		sc.statusText.Text = "Status: 🟡 Never deployed"
-		sc.statusText.Color = color.RGBA{R: 255, G: 153, B: 0, A: 255}
+		sc.statusText.Text = "Status: Never deployed"
+		sc.statusText.Color = color.RGBA{R: 255, G: 200, B: 100, A: 255}
 		sc.localText.Text = fmt.Sprintf("Local: %s", localHash[:7])
 		sc.remoteText.Text = "Remote: N/A"
-		sc.actionButton.SetText("Deploy")
 		sc.statusText.Refresh()
 		sc.localText.Refresh()
 		sc.remoteText.Refresh()
@@ -124,19 +116,17 @@ func (sc *StatusCard) UpdateStatus() {
 
 	// Compare revisions
 	if localHash[:7] == remoteHash {
-		sc.statusText.Text = "Status: 🟢 Up to date"
-		sc.statusText.Color = color.RGBA{R: 0, G: 180, B: 0, A: 255}
-		sc.actionButton.SetText("Re-deploy")
+		sc.statusText.Text = "Status: Up to date"
+		sc.statusText.Color = color.RGBA{R: 100, G: 255, B: 100, A: 255}
 	} else {
 		// Check if local is ahead
 		commitsAhead := sc.getCommitsAhead(remoteHash, localHash)
 		if commitsAhead > 0 {
-			sc.statusText.Text = fmt.Sprintf("Status: 🟡 Local changes (+%d commits)", commitsAhead)
+			sc.statusText.Text = fmt.Sprintf("Status: Local changes (+%d commits)", commitsAhead)
 		} else {
-			sc.statusText.Text = "Status: 🟡 Local changes"
+			sc.statusText.Text = "Status: Local changes"
 		}
-		sc.statusText.Color = color.RGBA{R: 255, G: 153, B: 0, A: 255}
-		sc.actionButton.SetText("Deploy Latest")
+		sc.statusText.Color = color.RGBA{R: 255, G: 200, B: 100, A: 255}
 	}
 
 	// Set revision labels
@@ -194,8 +184,4 @@ func formatTimeAgo(t time.Time) string {
 		}
 		return fmt.Sprintf("%d days ago", days)
 	}
-}
-
-func (sc *StatusCard) SetDeployCallback(callback func()) {
-	sc.actionButton.OnTapped = callback
 }
