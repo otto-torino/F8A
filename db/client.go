@@ -33,6 +33,12 @@ func DB() *DBClient {
 				zap.S().Info("Succesfully connected to sqlite3 db on ", dbFile)
 			}
 
+			// Enable foreign key constraints in SQLite
+			_, err = conn.Exec("PRAGMA foreign_keys = ON")
+			if err != nil {
+				zap.S().Fatal("Cannot enable foreign key constraints")
+			}
+
 			db = &DBClient{conn}
 		})
 	}
@@ -102,5 +108,32 @@ UPDATE apps SET local_dist_dir_name = "dist" WHERE local_dist_dir_name IS NULL O
 	_, err = client.C.Exec(stmt)
 	if err != nil {
 		// do nothing
+	}
+
+	stmt = `
+CREATE TABLE IF NOT EXISTS deployments (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	app_id INTEGER NOT NULL,
+	commit_hash TEXT NOT NULL,
+	status TEXT NOT NULL,
+	started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	completed_at DATETIME,
+	total_duration_ms INTEGER,
+	error_message TEXT,
+	error_step TEXT,
+	FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
+);
+	`
+	_, err = client.C.Exec(stmt)
+	if err != nil {
+		// table might already exist, ignore error
+	}
+
+	stmt = `
+CREATE INDEX IF NOT EXISTS idx_deployments_app_id_started ON deployments(app_id, started_at DESC);
+	`
+	_, err = client.C.Exec(stmt)
+	if err != nil {
+		// index might already exist, ignore error
 	}
 }
