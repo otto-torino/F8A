@@ -1,3 +1,4 @@
+// Package components
 package components
 
 import (
@@ -31,11 +32,11 @@ func MakeSidebar(addCb func()) *fyne.Container {
 	background := canvas.NewRectangle(t.SidebarBg(themeVariant))
 	sidebar := container.New(layout.NewStackLayout(), background, container.NewPadded(container.NewBorder(titleContainer, nil, nil, nil, navContent)))
 
-	utils.Dispatcher.On(utils.AppChange, func(args ...interface{}) {
+	utils.Dispatcher.On(utils.AppChange, func(args ...any) {
 		UpdateNavContent()
 	})
 
-	utils.Dispatcher.On(utils.AppDelete, func(args ...interface{}) {
+	utils.Dispatcher.On(utils.AppDelete, func(args ...any) {
 		UpdateNavContent()
 	})
 
@@ -61,7 +62,7 @@ func UpdateNavContent() {
 	list.OnSelected = func(id widget.ListItemID) {
 		utils.Dispatcher.Emit(utils.AppSelect, webapps[id].ID)
 	}
-	utils.Dispatcher.On(utils.AppAdd, func(args ...interface{}) {
+	utils.Dispatcher.On(utils.AppAdd, func(args ...any) {
 		list.UnselectAll()
 		id := args[0].(int)
 		if id == 0 {
