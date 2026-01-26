@@ -136,4 +136,22 @@ CREATE INDEX IF NOT EXISTS idx_deployments_app_id_started ON deployments(app_id,
 	if err != nil {
 		// index might already exist, ignore error
 	}
+
+	stmt = `
+CREATE TABLE IF NOT EXISTS deployment_steps (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	deployment_id INTEGER NOT NULL,
+	step_name TEXT NOT NULL,
+	status TEXT NOT NULL,
+	started_at DATETIME,
+	completed_at DATETIME,
+	duration_ms INTEGER,
+	output TEXT,
+	FOREIGN KEY (deployment_id) REFERENCES deployments(id) ON DELETE CASCADE
+);
+	`
+	_, err = client.C.Exec(stmt)
+	if err != nil {
+		// table might already exist, ignore error
+	}
 }
