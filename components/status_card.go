@@ -24,14 +24,14 @@ type StatusCard struct {
 }
 
 func NewStatusCard(app *models.App) *StatusCard {
-	statusText := canvas.NewText("Status: Loading...", color.White)
+	statusText := canvas.NewText("Status: Checking...", color.RGBA{R: 200, G: 200, B: 200, A: 255})
 	statusText.TextSize = 14
 	statusText.TextStyle = fyne.TextStyle{Bold: true}
 
-	remoteText := canvas.NewText("Remote: ...", color.White)
+	remoteText := canvas.NewText("Remote: Checking...", color.RGBA{R: 200, G: 200, B: 200, A: 255})
 	remoteText.TextSize = 12
 
-	localText := canvas.NewText("Local: ...", color.White)
+	localText := canvas.NewText("Local: Checking...", color.RGBA{R: 200, G: 200, B: 200, A: 255})
 	localText.TextSize = 12
 
 	card := &StatusCard{
@@ -95,22 +95,33 @@ func (sc *StatusCard) UpdateStatus() {
 	if localHash == "" {
 		sc.statusText.Text = "Status: Error getting local revision"
 		sc.statusText.Color = color.RGBA{R: 255, G: 100, B: 100, A: 255}
+		sc.localText.Text = "Local: Error"
+		sc.localText.Color = color.White
 		sc.statusText.Refresh()
+		sc.localText.Refresh()
 		return
 	}
+
+	// Update local revision immediately
+	sc.localText.Text = fmt.Sprintf("Local: %s", localHash[:7])
+	sc.localText.Color = color.White
+	sc.localText.Refresh()
 
 	// Get remote revision from actual server
 	remoteHash := sc.getRemoteRevision()
 	if remoteHash == "" {
 		sc.statusText.Text = "Status: Never deployed"
 		sc.statusText.Color = color.RGBA{R: 255, G: 200, B: 100, A: 255}
-		sc.localText.Text = fmt.Sprintf("Local: %s", localHash[:7])
 		sc.remoteText.Text = "Remote: N/A"
+		sc.remoteText.Color = color.White
 		sc.statusText.Refresh()
-		sc.localText.Refresh()
 		sc.remoteText.Refresh()
 		return
 	}
+
+	// Update remote revision
+	sc.remoteText.Text = fmt.Sprintf("Remote: %s", remoteHash)
+	sc.remoteText.Color = color.White
 
 	// Compare revisions
 	if localHash[:7] == remoteHash {
@@ -127,10 +138,6 @@ func (sc *StatusCard) UpdateStatus() {
 		sc.statusText.Color = color.RGBA{R: 255, G: 200, B: 100, A: 255}
 	}
 
-	// Set revision labels
-	sc.localText.Text = fmt.Sprintf("Local: %s", localHash[:7])
-	sc.remoteText.Text = fmt.Sprintf("Remote: %s", remoteHash)
-
 	// Get deployment time from database if available
 	lastDeployment, err := models.GetLastSuccessfulDeployment(sc.app.ID)
 	if err == nil && lastDeployment != nil && lastDeployment.CommitHash == remoteHash {
@@ -139,7 +146,6 @@ func (sc *StatusCard) UpdateStatus() {
 	}
 
 	sc.statusText.Refresh()
-	sc.localText.Refresh()
 	sc.remoteText.Refresh()
 }
 

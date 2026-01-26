@@ -132,7 +132,8 @@ func HandleWebAppSection(id int) {
 
 	// Status card at top
 	statusCard := NewStatusCard(app)
-	statusCard.UpdateStatus()
+	// Update status asynchronously to avoid blocking UI
+	go statusCard.UpdateStatus()
 
 	// top title and delete button
 	title := utils.MakeTitle(app.Name)
