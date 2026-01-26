@@ -26,7 +26,7 @@ func BuildArchive(app *models.App, outputContainer *fyne.Container) func() {
 			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
 			return
 		}
-		if err := utils.Shellout(fmt.Sprintf("cd %s && tar cvf dist.tar dist", app.LocalPath), outputContainer, false); err != nil {
+		if err := utils.Shellout(fmt.Sprintf("cd %s && tar cvf dist.tar %s", app.LocalPath, app.LocalDistDirName), outputContainer, false); err != nil {
 			utils.AddTextToOutput(err.Error(), errorColor, outputContainer)
 			return
 		}
