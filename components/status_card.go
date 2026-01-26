@@ -18,18 +18,28 @@ import (
 type StatusCard struct {
 	widget.BaseWidget
 	app          *models.App
-	statusLabel  *widget.Label
-	remoteLabel  *widget.Label
-	localLabel   *widget.Label
+	statusText   *canvas.Text
+	remoteText   *canvas.Text
+	localText    *canvas.Text
 	actionButton *widget.Button
 }
 
 func NewStatusCard(app *models.App) *StatusCard {
+	statusText := canvas.NewText("Status: Loading...", color.Black)
+	statusText.TextSize = 14
+	statusText.TextStyle = fyne.TextStyle{Bold: true}
+
+	remoteText := canvas.NewText("Remote: ...", color.Black)
+	remoteText.TextSize = 12
+
+	localText := canvas.NewText("Local: ...", color.Black)
+	localText.TextSize = 12
+
 	card := &StatusCard{
 		app:          app,
-		statusLabel:  widget.NewLabel("Status: Loading..."),
-		remoteLabel:  widget.NewLabel("Remote: ..."),
-		localLabel:   widget.NewLabel("Local: ..."),
+		statusText:   statusText,
+		remoteText:   remoteText,
+		localText:    localText,
 		actionButton: widget.NewButton("Deploy", func() {}),
 	}
 	card.ExtendBaseWidget(card)
@@ -38,12 +48,12 @@ func NewStatusCard(app *models.App) *StatusCard {
 }
 
 func (sc *StatusCard) CreateRenderer() fyne.WidgetRenderer {
-	background := canvas.NewRectangle(color.RGBA{R: 240, G: 240, B: 240, A: 255})
+	background := canvas.NewRectangle(color.RGBA{R: 220, G: 230, B: 240, A: 255})
 
 	content := container.NewVBox(
-		sc.statusLabel,
-		sc.remoteLabel,
-		sc.localLabel,
+		sc.statusText,
+		container.NewHBox(sc.localText, layout.NewSpacer()),
+		container.NewHBox(sc.remoteText, layout.NewSpacer()),
 	)
 
 	mainContent := container.NewBorder(
@@ -90,17 +100,23 @@ func (sc *StatusCard) UpdateStatus() {
 	// Get local revision
 	localHash := sc.getLocalRevision()
 	if localHash == "" {
-		sc.statusLabel.SetText("Status: Error getting local revision")
+		sc.statusText.Text = "Status: Error getting local revision"
+		sc.statusText.Color = color.RGBA{R: 200, G: 0, B: 0, A: 255}
+		sc.statusText.Refresh()
 		return
 	}
 
 	// Get last successful deployment
 	lastDeployment, err := models.GetLastSuccessfulDeployment(sc.app.ID)
 	if err != nil || lastDeployment == nil {
-		sc.statusLabel.SetText("Status: 🟡 Never deployed")
-		sc.localLabel.SetText(fmt.Sprintf("Local: %s", localHash[:7]))
-		sc.remoteLabel.SetText("Remote: N/A")
+		sc.statusText.Text = "Status: 🟡 Never deployed"
+		sc.statusText.Color = color.RGBA{R: 255, G: 153, B: 0, A: 255}
+		sc.localText.Text = fmt.Sprintf("Local: %s", localHash[:7])
+		sc.remoteText.Text = "Remote: N/A"
 		sc.actionButton.SetText("Deploy")
+		sc.statusText.Refresh()
+		sc.localText.Refresh()
+		sc.remoteText.Refresh()
 		return
 	}
 
@@ -108,25 +124,31 @@ func (sc *StatusCard) UpdateStatus() {
 
 	// Compare revisions
 	if localHash[:7] == remoteHash {
-		sc.statusLabel.SetText("Status: 🟢 Up to date")
+		sc.statusText.Text = "Status: 🟢 Up to date"
+		sc.statusText.Color = color.RGBA{R: 0, G: 180, B: 0, A: 255}
 		sc.actionButton.SetText("Re-deploy")
 	} else {
 		// Check if local is ahead
 		commitsAhead := sc.getCommitsAhead(remoteHash, localHash)
 		if commitsAhead > 0 {
-			sc.statusLabel.SetText(fmt.Sprintf("Status: 🟡 Local changes (+%d commits)", commitsAhead))
+			sc.statusText.Text = fmt.Sprintf("Status: 🟡 Local changes (+%d commits)", commitsAhead)
 		} else {
-			sc.statusLabel.SetText("Status: 🟡 Local changes")
+			sc.statusText.Text = "Status: 🟡 Local changes"
 		}
+		sc.statusText.Color = color.RGBA{R: 255, G: 153, B: 0, A: 255}
 		sc.actionButton.SetText("Deploy Latest")
 	}
 
 	// Set revision labels
-	sc.localLabel.SetText(fmt.Sprintf("Local: %s", localHash[:7]))
+	sc.localText.Text = fmt.Sprintf("Local: %s", localHash[:7])
 
 	// Format deployment time
 	timeAgo := formatTimeAgo(lastDeployment.StartedAt)
-	sc.remoteLabel.SetText(fmt.Sprintf("Remote: %s (deployed %s)", remoteHash, timeAgo))
+	sc.remoteText.Text = fmt.Sprintf("Remote: %s (deployed %s)", remoteHash, timeAgo)
+
+	sc.statusText.Refresh()
+	sc.localText.Refresh()
+	sc.remoteText.Refresh()
 }
 
 func (sc *StatusCard) getLocalRevision() string {
