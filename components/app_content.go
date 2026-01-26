@@ -130,6 +130,10 @@ func HandleWebAppSection(id int) {
 	// clean
 	mainContent.RemoveAll()
 
+	// Status card at top
+	statusCard := NewStatusCard(app)
+	statusCard.UpdateStatus()
+
 	// top title and delete button
 	title := utils.MakeTitle(app.Name)
 	editButton := widget.NewButtonWithIcon("", theme.DocumentCreateIcon(), func() {
@@ -161,7 +165,7 @@ func HandleWebAppSection(id int) {
 	hasHtAccess := widget.NewLabel(hasHtAccessStr)
 	infoGrid := container.New(layout.NewFormLayout(), nameLabel, name, localPathLabel, localPath, localDistDirNameLabel, localDistDirName, remoteHostLabel, remoteHost, remotePathLabel, remotePath, currentDirNameLabel, currentDirName, hasHtAccessLabel, hasHtAccess)
 
-	top := container.NewVBox(header, infoGrid)
+	top := container.NewVBox(statusCard, header, infoGrid)
 
 	output := container.NewVBox()
 	background := canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 0, A: 255})
