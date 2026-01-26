@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -35,7 +36,7 @@ func newStepRow(step progress.Step) *StepRow {
 	}
 
 	sr.outputArea = widget.NewMultiLineEntry()
-	sr.outputArea.Disable()
+
 	sr.outputContainer = container.NewVBox(sr.outputArea)
 	sr.outputContainer.Hide()
 
@@ -77,7 +78,7 @@ func (sr *StepRow) update(update progress.StepUpdate) {
 		sr.step.Duration = update.Duration
 	}
 
-	if update.Output != "" {
+	if strings.TrimSpace(update.Output) != "" {
 		sr.toggleBtn.Enable()
 		sr.outputArea.SetText(sr.outputArea.Text + update.Output)
 	}
