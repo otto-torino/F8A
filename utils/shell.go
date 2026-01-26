@@ -27,14 +27,15 @@ func AddTextToOutput(text string, c color.Color, outputContainer *fyne.Container
 	Scroll.ScrollToBottom()
 }
 
-func Shellout(command string, outputContainer *fyne.Container, clear bool) error {
+func Shellout(description string, command string, outputContainer *fyne.Container, clear bool) error {
 	if clear {
 		outputContainer.RemoveAll()
 	}
 	cmd := exec.Command(ShellToUse, "-c", command)
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
-	AddTextToOutput("Executing "+command, color.RGBA{R: 255, G: 153, B: 0, A: 255}, outputContainer)
+	AddTextToOutput("Executing: "+description, color.RGBA{R: 255, G: 153, B: 0, A: 255}, outputContainer)
+	AddTextToOutput("Command: "+command, color.RGBA{R: 135, G: 206, B: 250, A: 255}, outputContainer)
 	err := cmd.Start()
 	if err != nil {
 		AddTextToOutput(err.Error(), color.RGBA{R: 255, G: 0, B: 0, A: 255}, outputContainer)
