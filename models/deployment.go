@@ -134,3 +134,107 @@ func GetLastSuccessfulDeployment(appID int) (*Deployment, error) {
 	}
 	return &d, nil
 }
+
+func CreateDeploymentStep(deploymentID int64, stepName string) (int64, error) {
+	result, err := db.DB().C.Exec(
+		"INSERT INTO deployment_steps (deployment_id, step_name, status) VALUES (?, ?, ?)",
+		deploymentID, stepName, "pending",
+	)
+	if err != nil {
+		logger.ZapLog.Error("Cannot create deployment step", err)
+		return 0, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		logger.ZapLog.Error("Cannot get last insert ID", err)
+		return 0, err
+	}
+	return id, nil
+}
+
+func StartDeploymentStep(stepID int64) error {
+	now := time.Now()
+	_, err := db.DB().C.Exec(
+		"UPDATE deployment_steps SET status = ?, started_at = ? WHERE id = ?",
+		"running", now, stepID,
+	)
+	if err != nil {
+		logger.ZapLog.Error("Cannot start deployment step", err)
+		return err
+	}
+	return nil
+}
+
+func CompleteDeploymentStep(stepID int64, status string, output string) error {
+	now := time.Now()
+
+	// Get start time to calculate duration
+	var startedAt time.Time
+	err := db.DB().C.QueryRow("SELECT started_at FROM deployment_steps WHERE id = ?", stepID).Scan(&startedAt)
+	if err != nil {
+		logger.ZapLog.Error("Cannot get step start time", err)
+		return err
+	}
+
+	durationMs := now.Sub(startedAt).Milliseconds()
+
+	_, err = db.DB().C.Exec(
+		"UPDATE deployment_steps SET status = ?, completed_at = ?, duration_ms = ?, output = ? WHERE id = ?",
+		status, now, durationMs, output, stepID,
+	)
+	if err != nil {
+		logger.ZapLog.Error("Cannot complete deployment step", err)
+		return err
+	}
+	return nil
+}
+
+func GetDeploymentSteps(deploymentID int64) ([]DeploymentStep, error) {
+	steps := []DeploymentStep{}
+	stmt, err := db.DB().C.Prepare(
+		"SELECT id, deployment_id, step_name, status, started_at, completed_at, duration_ms, output FROM deployment_steps WHERE deployment_id = ? ORDER BY id ASC",
+	)
+	if err != nil {
+		logger.ZapLog.Error("Cannot prepare get steps query", err)
+		return nil, err
+	}
+	defer stmt.Close()
+	rows, err := stmt.Query(deploymentID)
+	if err != nil {
+		logger.ZapLog.Error("Cannot get deployment steps", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var s DeploymentStep
+		err := rows.Scan(&s.ID, &s.DeploymentID, &s.StepName, &s.Status, &s.StartedAt, &s.CompletedAt, &s.DurationMs, &s.Output)
+		if err != nil {
+			logger.ZapLog.Error("Cannot scan step row", err)
+			continue
+		}
+		steps = append(steps, s)
+	}
+	if err = rows.Err(); err != nil {
+		logger.ZapLog.Error("Error during rows iteration", err)
+		return nil, err
+	}
+	return steps, nil
+}
+
+func GetAverageStepDuration(appID int, stepName string, limit int) (int64, error) {
+	var avgDuration int64
+	err := db.DB().C.QueryRow(
+		`SELECT AVG(ds.duration_ms)
+		FROM deployment_steps ds
+		JOIN deployments d ON ds.deployment_id = d.id
+		WHERE d.app_id = ? AND ds.step_name = ? AND ds.status = 'success' AND d.status = 'success'
+		ORDER BY d.started_at DESC
+		LIMIT ?`,
+		appID, stepName, limit,
+	).Scan(&avgDuration)
+	if err != nil {
+		return 0, err
+	}
+	return avgDuration, nil
+}
