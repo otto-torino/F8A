@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"os/exec"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -13,74 +14,136 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"github.com/otto-torino/f8a/models"
+	"github.com/otto-torino/f8a/progress"
 	"github.com/otto-torino/f8a/utils"
 )
 
 func Deploy(app *models.App, outputContainer *fyne.Container) func() {
 	return func() {
 		outputContainer.RemoveAll()
+
+		// Get commit hash
 		out, err := exec.Command("bash", "-c", "cd "+app.LocalPath+" && git rev-parse --short HEAD").Output()
 		if err != nil {
-			fmt.Println(err)
-		}
-		commitHash := string(out)[0:7]
-
-		utils.AddTextToOutput("Deploying revision "+commitHash, color.RGBA{R: 255, G: 153, B: 0, A: 255}, outputContainer)
-		err = deploy(app, outputContainer, commitHash)
-		if err != nil {
-			utils.AddTextToOutput("Deployment failed for revision "+commitHash, errorColor, outputContainer)
+			utils.AddTextToOutput("Failed to get commit hash: "+err.Error(), errorColor, outputContainer)
 			return
 		}
+		commitHash := strings.TrimSpace(string(out))
+
+		utils.AddTextToOutput("Deploying revision "+commitHash, color.RGBA{R: 255, G: 153, B: 0, A: 255}, outputContainer)
+
+		// Create deployment record
+		deploymentID, err := models.CreateDeployment(app.ID, commitHash)
+		if err != nil {
+			utils.AddTextToOutput("Failed to create deployment record: "+err.Error(), errorColor, outputContainer)
+			return
+		}
+
+		// Initialize progress tracker
+		tracker := progress.NewDeploymentProgress(deploymentID, app.ID, commitHash)
+		tracker.LoadAverageDurations()
+		defer tracker.Close()
+
+		// Start deployment
+		startTime := time.Now()
+		err = deployWithProgress(app, outputContainer, commitHash, tracker)
+		duration := time.Since(startTime)
+
+		if err != nil {
+			utils.AddTextToOutput("Deployment failed for revision "+commitHash, errorColor, outputContainer)
+			errMsg := err.Error()
+			currentStep := tracker.CurrentStep
+			models.UpdateDeploymentStatus(deploymentID, "failed", &errMsg, &currentStep)
+			return
+		}
+
 		utils.AddTextToOutput("Deployed revision "+commitHash, color.RGBA{R: 0, G: 255, B: 0, A: 255}, outputContainer)
+		models.UpdateDeploymentStatus(deploymentID, "success", nil, nil)
+		durationMs := duration.Milliseconds()
+		models.UpdateDeploymentDuration(deploymentID, &durationMs)
 	}
 }
 
-func deploy(app *models.App, outputContainer *fyne.Container, commitHash string) error {
+func deployWithProgress(app *models.App, outputContainer *fyne.Container, commitHash string, tracker *progress.DeploymentProgress) error {
+	// Check if already deployed
 	if utils.CheckRemoteRevisionEqualsLocal(app) {
 		utils.AddTextToOutput("Revision already deployed", errorColor, outputContainer)
 		return errors.New("Revision already deployed")
 	}
-	if err := utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true); err != nil {
+
+	// Step 1: Build
+	tracker.StartStep(progress.StepBuild)
+	err := utils.Shellout(fmt.Sprintf("cd %s && yarn build", app.LocalPath), outputContainer, true)
+	tracker.CompleteStep(progress.StepBuild, err == nil, "", err)
+	if err != nil {
 		return err
 	}
-	if err := utils.Shellout(fmt.Sprintf("cd %s && tar cvf %s.tar %s", app.LocalPath, commitHash, app.LocalDistDirName), outputContainer, false); err != nil {
+
+	// Step 2: Archive
+	tracker.StartStep(progress.StepArchive)
+	err = utils.Shellout(fmt.Sprintf("cd %s && tar cvf %s.tar %s", app.LocalPath, commitHash, app.LocalDistDirName), outputContainer, false)
+	tracker.CompleteStep(progress.StepArchive, err == nil, "", err)
+	if err != nil {
 		return err
 	}
-	if err := utils.Shellout(fmt.Sprintf("scp %s/%s.tar otto@%s:%s", app.LocalPath, commitHash, app.RemoteHost, app.RemotePath), outputContainer, false); err != nil {
+
+	// Step 3: Upload
+	tracker.StartStep(progress.StepUpload)
+	err = utils.Shellout(fmt.Sprintf("scp %s/%s.tar otto@%s:%s", app.LocalPath, commitHash, app.RemoteHost, app.RemotePath), outputContainer, false)
+	tracker.CompleteStep(progress.StepUpload, err == nil, "", err)
+	if err != nil {
 		return err
 	}
-	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false); err != nil {
+
+	// Skip ls command (not part of critical path)
+	utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false)
+
+	// Step 4: Backup
+	tracker.StartStep(progress.StepBackup)
+	err = utils.Shellout(fmt.Sprintf("ssh otto@%s rm -r %s/previous", app.RemoteHost, app.RemotePath), outputContainer, false)
+	if err == nil {
+		err = utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/previous", app.RemoteHost, app.RemotePath, app.CurrentDirName, app.RemotePath), outputContainer, false)
+	}
+	tracker.CompleteStep(progress.StepBackup, err == nil, "", err)
+	if err != nil {
 		return err
 	}
-	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s rm -r %s/previous", app.RemoteHost, app.RemotePath), outputContainer, false); err != nil {
+
+	// Step 5: Extract
+	tracker.StartStep(progress.StepExtract)
+	err = utils.Shellout(fmt.Sprintf("ssh otto@%s tar xvf %s/%s.tar -C %s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath), outputContainer, false)
+	if err == nil {
+		err = utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/%s", app.RemoteHost, app.RemotePath, app.LocalDistDirName, app.RemotePath, commitHash), outputContainer, false)
+	}
+	tracker.CompleteStep(progress.StepExtract, err == nil, "", err)
+	if err != nil {
 		return err
 	}
-	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/previous", app.RemoteHost, app.RemotePath, app.CurrentDirName, app.RemotePath), outputContainer, false); err != nil {
+
+	// Skip ls command (not part of critical path)
+	utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false)
+
+	// Step 6: Activate
+	tracker.StartStep(progress.StepActivate)
+	err = utils.Shellout(fmt.Sprintf("ssh otto@%s ln -s %s/%s %s/%s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath, app.CurrentDirName), outputContainer, false)
+	tracker.CompleteStep(progress.StepActivate, err == nil, "", err)
+	if err != nil {
 		return err
 	}
-	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s tar xvf %s/%s.tar -C %s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath), outputContainer, false); err != nil {
-		return err
-	}
-	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/%s", app.RemoteHost, app.RemotePath, app.LocalDistDirName, app.RemotePath, commitHash), outputContainer, false); err != nil {
-		return err
-	}
-	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s ls -la %s", app.RemoteHost, app.RemotePath), outputContainer, false); err != nil {
-		return err
-	}
-	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s ln -s %s/%s %s/%s", app.RemoteHost, app.RemotePath, commitHash, app.RemotePath, app.CurrentDirName), outputContainer, false); err != nil {
-		return err
-	}
-	if err := utils.Shellout(fmt.Sprintf("ssh otto@%s rm %s/%s.tar", app.RemoteHost, app.RemotePath, commitHash), outputContainer, false); err != nil {
-		return err
-	}
-	if app.HasHtAccess == 1 {
-		if err := utils.Shellout(
+
+	// Step 7: Cleanup
+	tracker.StartStep(progress.StepCleanup)
+	err = utils.Shellout(fmt.Sprintf("ssh otto@%s rm %s/%s.tar", app.RemoteHost, app.RemotePath, commitHash), outputContainer, false)
+	if err == nil && app.HasHtAccess == 1 {
+		err = utils.Shellout(
 			fmt.Sprintf("ssh otto@%s cp %s/.htaccess %s/%s", app.RemoteHost, app.RemotePath, app.RemotePath, app.CurrentDirName),
 			outputContainer,
 			false,
-		); err != nil {
-			return err
-		}
+		)
+	}
+	tracker.CompleteStep(progress.StepCleanup, err == nil, "", err)
+	if err != nil {
+		return err
 	}
 
 	return nil
