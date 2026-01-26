@@ -138,6 +138,8 @@ func (pp *ProgressPanel) CreateRenderer() fyne.WidgetRenderer {
 
 func (pp *ProgressPanel) Listen(updateChan chan progress.StepUpdate) {
 	pp.startTime = time.Now()
+	done := make(chan bool)
+
 	go func() {
 		for update := range updateChan {
 			row, ok := pp.stepRows[update.StepName]
@@ -146,14 +148,20 @@ func (pp *ProgressPanel) Listen(updateChan chan progress.StepUpdate) {
 				pp.updateOverallProgress()
 			}
 		}
+		done <- true
 	}()
 
 	// Timer goroutine for total time
 	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 		for {
-			time.Sleep(time.Second)
-			// Ideally we'd have a 'Done' signal, but for now we just update
-			pp.totalTimeLabel.SetText(fmt.Sprintf("Total time: %s", time.Since(pp.startTime).Round(time.Second)))
+			select {
+			case <-ticker.C:
+				pp.totalTimeLabel.SetText(fmt.Sprintf("Total time: %s", time.Since(pp.startTime).Round(time.Second)))
+			case <-done:
+				return
+			}
 		}
 	}()
 }
