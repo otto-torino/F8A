@@ -23,7 +23,7 @@ func NewHistoryTimeline(app *models.App) *HistoryTimeline {
 	timeline := &HistoryTimeline{
 		app:       app,
 		container: container.NewVBox(),
-		expanded:  true,
+		expanded:  false,
 	}
 	timeline.ExtendBaseWidget(timeline)
 	timeline.LoadDeployments()
@@ -38,7 +38,11 @@ func (ht *HistoryTimeline) LoadDeployments() {
 	ht.container.Objects = nil
 
 	// Header with toggle
-	header := widget.NewButton("Recent Deployments ▼", func() {
+	buttonText := "Recent Deployments [+]"
+	if ht.expanded {
+		buttonText = "Recent Deployments [-]"
+	}
+	header := widget.NewButton(buttonText, func() {
 		ht.Toggle()
 	})
 	ht.container.Add(header)
