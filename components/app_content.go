@@ -194,12 +194,6 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container, statusC
 	// Build Archive
 	buildArchive := utils.MakeButton("Build Archive", commands.BuildArchive(app, outputContainer))
 
-	// Local revision button
-	gitLocaleRev := utils.MakeButton("Local Revision", commands.LocalRevision(app, outputContainer))
-
-	// Remote revision button
-	gitRemoteRev := utils.MakeButton("Remote Revision", commands.RemoteRevision(app, outputContainer))
-
 	// Deploy button
 	onComplete := func() {
 		// Refresh status card and history after deployment
@@ -227,7 +221,11 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container, statusC
 	})
 
 	// Restore button
-	restore := utils.MakeButton("Restore Revision", commands.Restore(app))
+	onRestoreComplete := func() {
+		statusCard.UpdateStatus()
+		historyTimeline.LoadDeployments()
+	}
+	restore := utils.MakeButton("Restore Revision", commands.Restore(app, onRestoreComplete))
 
-	return container.NewHBox(build, buildArchive, gitLocaleRev, gitRemoteRev, restore, deploy)
+	return container.NewHBox(build, buildArchive, restore, deploy)
 }

@@ -160,7 +160,7 @@ func deployWithProgress(app *models.App, commitHash string, tracker *progress.De
 	return nil
 }
 
-func Restore(app *models.App) func() {
+func Restore(app *models.App, onSuccess func()) func() {
 	return func() {
 		background := canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 0, A: 255})
 		background.SetMinSize(fyne.NewSize(400, 80))
@@ -192,19 +192,22 @@ func Restore(app *models.App) func() {
 
 				utils.AddTextToOutput(fmt.Sprintf("Restoring revision %s", revision), color.RGBA{R: 255, G: 255, B: 255, A: 255}, outInfo)
 
-				if err := utils.Shellout(fmt.Sprintf("ssh otto@%s rm -r %s/previous", app.RemoteHost, app.RemotePath), outInfo, false); err != nil {
+				if err := utils.Shellout(RemovePrevSymlinkDesc, fmt.Sprintf("ssh otto@%s rm -r %s/previous", app.RemoteHost, app.RemotePath), outInfo, false); err != nil {
 					utils.AddTextToOutput(err.Error(), errorColor, outInfo)
 					return
 				}
-				if err := utils.Shellout(fmt.Sprintf("ssh otto@%s mv %s/%s %s/previous", app.RemoteHost, app.RemotePath, app.CurrentDirName, app.RemotePath), outInfo, false); err != nil {
+				if err := utils.Shellout(MoveCurrentRevToPreviousDesc, fmt.Sprintf("ssh otto@%s mv %s/%s %s/previous", app.RemoteHost, app.RemotePath, app.CurrentDirName, app.RemotePath), outInfo, false); err != nil {
 					utils.AddTextToOutput(err.Error(), errorColor, outInfo)
 					return
 				}
-				if err := utils.Shellout(fmt.Sprintf("ssh otto@%s ln -s %s/%s %s/%s", app.RemoteHost, app.RemotePath, revision, app.RemotePath, app.CurrentDirName), outInfo, false); err != nil {
+				if err := utils.Shellout(ActivateCurrentSymlinkDesc, fmt.Sprintf("ssh otto@%s ln -s %s/%s %s/%s", app.RemoteHost, app.RemotePath, revision, app.RemotePath, app.CurrentDirName), outInfo, false); err != nil {
 					utils.AddTextToOutput(err.Error(), errorColor, outInfo)
 					return
 				}
 				utils.AddTextToOutput(fmt.Sprintf("Restored revision %s", revision), color.RGBA{R: 0, G: 255, B: 0, A: 255}, outInfo)
+				if onSuccess != nil {
+					onSuccess()
+				}
 			})
 			content.Add(btn)
 		}
