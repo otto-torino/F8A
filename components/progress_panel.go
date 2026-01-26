@@ -14,11 +14,15 @@ import (
 
 type StepRow struct {
 	widget.BaseWidget
-	step      progress.Step
-	icon      *widget.Icon
-	nameLabel *widget.Label
-	timeLabel *widget.Label
-	avgLabel  *widget.Label
+	step            progress.Step
+	icon            *widget.Icon
+	nameLabel       *widget.Label
+	timeLabel       *widget.Label
+	avgLabel        *widget.Label
+	toggleBtn       *widget.Button
+	outputArea      *widget.Entry
+	outputContainer *fyne.Container
+	outputVisible   bool
 }
 
 func newStepRow(step progress.Step) *StepRow {
@@ -29,17 +33,40 @@ func newStepRow(step progress.Step) *StepRow {
 		timeLabel: widget.NewLabel("--"),
 		avgLabel:  widget.NewLabel(fmt.Sprintf("(avg: %s)", formatStepDuration(step.AverageDuration))),
 	}
+
+	sr.outputArea = widget.NewMultiLineEntry()
+	sr.outputArea.Disable()
+	sr.outputContainer = container.NewVBox(sr.outputArea)
+	sr.outputContainer.Hide()
+
+	sr.toggleBtn = widget.NewButtonWithIcon("", theme.NavigateNextIcon(), func() {
+		sr.outputVisible = !sr.outputVisible
+		if sr.outputVisible {
+			sr.toggleBtn.SetIcon(theme.MenuDropDownIcon())
+			sr.outputContainer.Show()
+		} else {
+			sr.toggleBtn.SetIcon(theme.NavigateNextIcon())
+			sr.outputContainer.Hide()
+		}
+	})
+	sr.toggleBtn.Disable()
+
 	sr.ExtendBaseWidget(sr)
 	return sr
 }
 
 func (sr *StepRow) CreateRenderer() fyne.WidgetRenderer {
-	content := container.NewHBox(
+	topContainer := container.NewHBox(
+		sr.toggleBtn,
 		sr.icon,
 		sr.nameLabel,
 		layout.NewSpacer(),
 		sr.timeLabel,
 		sr.avgLabel,
+	)
+	content := container.NewVBox(
+		topContainer,
+		sr.outputContainer,
 	)
 	return widget.NewSimpleRenderer(content)
 }
@@ -48,6 +75,11 @@ func (sr *StepRow) update(update progress.StepUpdate) {
 	sr.step.Status = update.Status
 	if update.Duration > 0 {
 		sr.step.Duration = update.Duration
+	}
+
+	if update.Output != "" {
+		sr.toggleBtn.Enable()
+		sr.outputArea.SetText(sr.outputArea.Text + update.Output)
 	}
 
 	switch update.Status {
