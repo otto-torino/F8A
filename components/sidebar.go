@@ -111,11 +111,9 @@ func UpdateNavContent() {
 		return
 	}
 
-	// Clear existing items
 	navContent.RemoveAll()
 	sidebarItems = make([]*SidebarItem, 0, len(webapps))
 
-	// Create new items
 	for i, app := range webapps {
 		appID := app.ID
 		appIndex := i
@@ -127,6 +125,13 @@ func UpdateNavContent() {
 
 		sidebarItems = append(sidebarItems, item)
 		navContent.Add(item)
+
+		// Add small spacer between items (except after last)
+		if i < len(webapps)-1 {
+			spacer := canvas.NewRectangle(color.Transparent)
+			spacer.SetMinSize(fyne.NewSize(0, 4))
+			navContent.Add(spacer)
+		}
 	}
 
 	navContent.Refresh()

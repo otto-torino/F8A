@@ -37,12 +37,14 @@ func NewSidebarItem(text string, onTapped func(), themeVariant fyne.ThemeVariant
 
 func (s *SidebarItem) CreateRenderer() fyne.WidgetRenderer {
 	s.background = canvas.NewRectangle(color.Transparent)
+	s.background.CornerRadius = 4 // Add subtle rounding
 
 	s.label = canvas.NewText(s.text, color.Black)
 	s.label.TextSize = 13
 
 	s.updateColors()
 
+	// Add horizontal and vertical padding
 	content := container.NewPadded(s.label)
 	objects := []fyne.CanvasObject{s.background, content}
 
@@ -96,5 +98,5 @@ func (s *SidebarItem) MouseMoved(*desktop.MouseEvent) {
 }
 
 func (s *SidebarItem) MinSize() fyne.Size {
-	return fyne.NewSize(150, 36)
+	return fyne.NewSize(150, 40)
 }
