@@ -166,7 +166,7 @@ func HandleWebAppSection(id int) {
 	hasHtAccess := widget.NewLabel(hasHtAccessStr)
 	infoGrid := container.New(layout.NewFormLayout(), nameLabel, name, localPathLabel, localPath, localDistDirNameLabel, localDistDirName, remoteHostLabel, remoteHost, remotePathLabel, remotePath, currentDirNameLabel, currentDirName, hasHtAccessLabel, hasHtAccess)
 
-	top := container.NewVBox(statusCard, header, infoGrid)
+	top := container.NewVBox(header, statusCard, infoGrid)
 
 	output := container.NewVBox()
 	background := canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 0, A: 255})

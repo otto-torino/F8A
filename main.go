@@ -17,7 +17,7 @@ import (
 
 func init() {
 	// Read settings
-	viper.SetConfigFile(fmt.Sprintf("/etc/f8a.json"))
+	viper.SetConfigFile("/etc/f8a.json")
 	if err := viper.ReadInConfig(); err != nil {
 		panic(fmt.Sprintf("Error reading settings file, %s", err))
 	}
@@ -47,9 +47,11 @@ func main() {
 	registry.Window = &w
 
 	a.Settings().SetTheme(&theme.F8aTheme{})
+	// toolbar menu
 	w.SetMainMenu(components.MakeMenu(a, w))
 
 	mainContent := components.MakeMainContent()
+	// sidebar apps menu
 	sidebar := components.MakeSidebar(components.HandleAddWebApp)
 	mainLayout := container.NewHSplit(sidebar, mainContent)
 	mainLayout.Offset = 0.3

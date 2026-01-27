@@ -13,22 +13,21 @@ import (
 var mainContent *fyne.Container
 
 func MakeMainContent() *fyne.Container {
-
 	mainContent = container.New(layout.NewPaddedLayout())
 
 	// default content
 	HandleHomeSection()
 
 	// react to events
-	utils.Dispatcher.On(utils.AppSelect, func(args ...interface{}) {
+	utils.Dispatcher.On(utils.AppSelect, func(args ...any) {
 		id := args[0].(int)
 		HandleWebAppSection(id)
 	})
-	utils.Dispatcher.On(utils.AppDelete, func(args ...interface{}) {
+	utils.Dispatcher.On(utils.AppDelete, func(args ...any) {
 		HandleHomeSection()
 	})
 
-	utils.Dispatcher.On(utils.AppUpdate, func(args ...interface{}) {
+	utils.Dispatcher.On(utils.AppUpdate, func(args ...any) {
 		HandleHomeSection()
 	})
 

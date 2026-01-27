@@ -58,11 +58,16 @@ func (ht *HistoryTimeline) LoadDeployments() {
 
 func (ht *HistoryTimeline) makeDeploymentEntry(d models.Deployment) *fyne.Container {
 	// Status icon
-	statusIcon := "[OK]"
-	if d.Status == "failed" {
+	var statusIcon string
+	switch d.Status {
+	case "success":
+		statusIcon = "[OK]"
+	case "failed":
 		statusIcon = "[FAIL]"
-	} else if d.Status == "running" {
+	case "running":
 		statusIcon = "[...]"
+	default:
+		statusIcon = "[?]"
 	}
 
 	// Commit hash with status
@@ -128,18 +133,20 @@ func (ht *HistoryTimeline) showDeploymentDetails(d models.Deployment) {
 	}
 
 	// Spacer
-	content.Add(widget.NewLabel(""))
-	content.Add(widget.NewLabel("Steps:"))
+	content.Add(widget.NewLabelWithStyle("Steps:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 
 	// Steps list
 	for _, step := range steps {
-		statusIcon := "[OK]"
-		if step.Status == "failed" {
+		var statusIcon string
+		switch step.Status {
+		case "success":
+			statusIcon = "[OK]"
+		case "failed":
 			statusIcon = "[FAIL]"
-		} else if step.Status == "running" {
+		case "running":
 			statusIcon = "[...]"
-		} else if step.Status == "pending" {
-			statusIcon = "[ ]"
+		default:
+			statusIcon = "[?]"
 		}
 
 		stepDuration := ""
