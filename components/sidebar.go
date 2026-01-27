@@ -8,29 +8,64 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/widget"
 	"github.com/otto-torino/f8a/models"
 	"github.com/otto-torino/f8a/theme"
 	"github.com/otto-torino/f8a/utils"
 )
 
 var navContent *fyne.Container
+var sidebarItems []*SidebarItem
+var currentSelectedID int
+var currentThemeVariant fyne.ThemeVariant
 
 func MakeSidebar(addCb func()) *fyne.Container {
-	// get theme variant
 	registry := utils.Registry()
-	themeVariant := (*registry.Application).Settings().ThemeVariant()
+	currentThemeVariant = (*registry.Application).Settings().ThemeVariant()
 	t := theme.F8aTheme{}
 
+	// Title
 	title := canvas.NewText("Apps", color.RGBA{R: 255, G: 153, B: 0, A: 255})
 	title.TextSize = 18
-	titleContainer := container.New(layout.NewVBoxLayout(), title)
 
-	navContent = container.New(layout.NewStackLayout())
+	// Separator
+	separator := canvas.NewRectangle(t.SidebarSeparator(currentThemeVariant))
+	separator.SetMinSize(fyne.NewSize(0, 1))
+	separatorContainer := container.New(layout.NewVBoxLayout(),
+		layout.NewSpacer(),
+		separator,
+		layout.NewSpacer(),
+	)
+
+	titleContainer := container.New(layout.NewVBoxLayout(),
+		layout.NewSpacer(),
+		title,
+		layout.NewSpacer(),
+		separatorContainer,
+	)
+
+	// Nav content
+	navContent = container.New(layout.NewVBoxLayout())
 	UpdateNavContent()
 
-	background := canvas.NewRectangle(t.SidebarBg(themeVariant))
-	sidebar := container.New(layout.NewStackLayout(), background, container.NewPadded(container.NewBorder(titleContainer, nil, nil, nil, navContent)))
+	// Scrollable list
+	scrollContent := container.NewVScroll(navContent)
+
+	// Main content with padding
+	mainContent := container.NewBorder(titleContainer, nil, nil, nil, scrollContent)
+	paddedContent := container.NewPadded(mainContent)
+
+	// Background and border
+	background := canvas.NewRectangle(t.SidebarBg(currentThemeVariant))
+	border := canvas.NewRectangle(t.SidebarBorder(currentThemeVariant))
+	border.SetMinSize(fyne.NewSize(1, 0))
+
+	borderContainer := container.New(layout.NewBorderLayout(nil, nil, nil, border), border)
+
+	sidebar := container.New(layout.NewStackLayout(),
+		background,
+		borderContainer,
+		paddedContent,
+	)
 
 	utils.Dispatcher.On(utils.AppChange, func(args ...any) {
 		UpdateNavContent()
@@ -38,6 +73,33 @@ func MakeSidebar(addCb func()) *fyne.Container {
 
 	utils.Dispatcher.On(utils.AppDelete, func(args ...any) {
 		UpdateNavContent()
+	})
+
+	utils.Dispatcher.On(utils.AppAdd, func(args ...any) {
+		id := args[0].(int)
+
+		// Re-fetch webapps to get the latest data
+		webapps, err := models.GetApps()
+		if err != nil {
+			return
+		}
+
+		if id == 0 {
+			// Deselect all
+			for _, item := range sidebarItems {
+				item.SetSelected(false)
+			}
+			currentSelectedID = 0
+			return
+		}
+
+		// Find and select the new app
+		for i, app := range webapps {
+			if app.ID == id {
+				updateSelection(i)
+				break
+			}
+		}
 	})
 
 	return sidebar
@@ -49,36 +111,30 @@ func UpdateNavContent() {
 		return
 	}
 
-	list := widget.NewList(
-		func() int {
-			return len(webapps)
-		},
-		func() fyne.CanvasObject {
-			return widget.NewLabel("template")
-		},
-		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(webapps[i].Name)
-		})
-	list.OnSelected = func(id widget.ListItemID) {
-		utils.Dispatcher.Emit(utils.AppSelect, webapps[id].ID)
-	}
-	utils.Dispatcher.On(utils.AppAdd, func(args ...any) {
-		list.UnselectAll()
-		id := args[0].(int)
-		if id == 0 {
-			return
-		}
-		index := 0
-		for i := range webapps {
-			if webapps[i].ID == id {
-				index = i
-				break
-			}
-		}
-		list.Select(index)
-	})
-
+	// Clear existing items
 	navContent.RemoveAll()
-	navContent.Add(list)
+	sidebarItems = make([]*SidebarItem, 0, len(webapps))
+
+	// Create new items
+	for i, app := range webapps {
+		appID := app.ID
+		appIndex := i
+
+		item := NewSidebarItem(app.Name, func() {
+			utils.Dispatcher.Emit(utils.AppSelect, appID)
+			updateSelection(appIndex)
+		}, currentThemeVariant)
+
+		sidebarItems = append(sidebarItems, item)
+		navContent.Add(item)
+	}
+
 	navContent.Refresh()
+}
+
+func updateSelection(index int) {
+	for i, item := range sidebarItems {
+		item.SetSelected(i == index)
+	}
+	currentSelectedID = index
 }
