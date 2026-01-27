@@ -13,10 +13,12 @@ import (
 	"github.com/otto-torino/f8a/utils"
 )
 
-var navContent *fyne.Container
-var sidebarItems []*SidebarItem
-var currentSelectedID int
-var currentThemeVariant fyne.ThemeVariant
+var (
+	navContent          *fyne.Container
+	sidebarItems        []*SidebarItem
+	currentSelectedID   int
+	currentThemeVariant fyne.ThemeVariant
+)
 
 func MakeSidebar(addCb func()) *fyne.Container {
 	registry := utils.Registry()
@@ -125,13 +127,6 @@ func UpdateNavContent() {
 
 		sidebarItems = append(sidebarItems, item)
 		navContent.Add(item)
-
-		// Add small spacer between items (except after last)
-		if i < len(webapps)-1 {
-			spacer := canvas.NewRectangle(color.Transparent)
-			spacer.SetMinSize(fyne.NewSize(0, 4))
-			navContent.Add(spacer)
-		}
 	}
 
 	navContent.Refresh()
