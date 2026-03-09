@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"image/color"
+	"net/http"
 	"os/exec"
 	"strings"
 	"time"
@@ -22,6 +23,8 @@ type StatusCard struct {
 	statusText *canvas.Text
 	remoteText *canvas.Text
 	localText  *canvas.Text
+	healthText *canvas.Text
+	diskText   *canvas.Text
 	refreshBtn *widget.Button
 }
 
@@ -36,11 +39,19 @@ func NewStatusCard(app *models.App) *StatusCard {
 	localText := canvas.NewText("Local: Checking...", color.RGBA{R: 200, G: 200, B: 200, A: 255})
 	localText.TextSize = 12
 
+	healthText := canvas.NewText("", color.RGBA{R: 200, G: 200, B: 200, A: 255})
+	healthText.TextSize = 12
+
+	diskText := canvas.NewText("Disk: Checking...", color.RGBA{R: 200, G: 200, B: 200, A: 255})
+	diskText.TextSize = 12
+
 	card := &StatusCard{
 		app:        app,
 		statusText: statusText,
 		remoteText: remoteText,
 		localText:  localText,
+		healthText: healthText,
+		diskText:   diskText,
 	}
 
 	card.refreshBtn = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
@@ -57,10 +68,17 @@ func (sc *StatusCard) CreateRenderer() fyne.WidgetRenderer {
 
 	header := container.NewHBox(sc.statusText, layout.NewSpacer(), sc.refreshBtn)
 
+	healthRow := container.NewHBox(sc.healthText, layout.NewSpacer())
+	if sc.app.HealthCheckUrl == "" {
+		healthRow.Hide()
+	}
+
 	content := container.NewVBox(
 		header,
 		container.NewHBox(sc.localText, layout.NewSpacer()),
 		container.NewHBox(sc.remoteText, layout.NewSpacer()),
+		healthRow,
+		container.NewHBox(sc.diskText, layout.NewSpacer()),
 	)
 
 	padded := container.New(layout.NewPaddedLayout(), content)
@@ -156,6 +174,94 @@ func (sc *StatusCard) UpdateStatus() {
 
 	sc.statusText.Refresh()
 	sc.remoteText.Refresh()
+
+	// Health check
+	if sc.app.HealthCheckUrl != "" {
+		sc.healthText.Text = "Health: Checking..."
+		sc.healthText.Color = color.RGBA{R: 200, G: 200, B: 200, A: 255}
+		sc.healthText.Refresh()
+
+		statusCode, err := sc.checkHealth()
+		if err != nil {
+			sc.healthText.Text = fmt.Sprintf("Health: Error (%s)", err.Error())
+			sc.healthText.Color = color.RGBA{R: 255, G: 100, B: 100, A: 255}
+		} else if statusCode >= 200 && statusCode < 400 {
+			sc.healthText.Text = fmt.Sprintf("Health: OK (%d)", statusCode)
+			sc.healthText.Color = color.RGBA{R: 100, G: 255, B: 100, A: 255}
+		} else {
+			sc.healthText.Text = fmt.Sprintf("Health: Failing (%d)", statusCode)
+			sc.healthText.Color = color.RGBA{R: 255, G: 100, B: 100, A: 255}
+		}
+		sc.healthText.Refresh()
+	}
+
+	// Disk usage
+	sc.diskText.Text = "Disk: Checking..."
+	sc.diskText.Color = color.RGBA{R: 200, G: 200, B: 200, A: 255}
+	sc.diskText.Refresh()
+
+	count, totalSize := sc.getRemoteDiskUsage()
+	if count >= 0 {
+		sc.diskText.Text = fmt.Sprintf("Disk: %d old deployment(s), %s total", count, totalSize)
+		sc.diskText.Color = color.White
+	} else {
+		sc.diskText.Text = "Disk: Unable to check"
+		sc.diskText.Color = color.RGBA{R: 255, G: 200, B: 100, A: 255}
+	}
+	sc.diskText.Refresh()
+}
+
+func (sc *StatusCard) getRemoteDiskUsage() (int, string) {
+	// Get current symlink target
+	currentCmd := fmt.Sprintf("ssh otto@%s readlink -f %s/%s", sc.app.RemoteHost, sc.app.RemotePath, sc.app.CurrentDirName)
+	currentOut, err := exec.Command("bash", "-c", currentCmd).Output()
+	currentTarget := ""
+	if err == nil {
+		parts := strings.Split(strings.TrimSpace(string(currentOut)), "/")
+		currentTarget = parts[len(parts)-1]
+	}
+
+	// Get total size of the remote path
+	sizeCmd := fmt.Sprintf("ssh otto@%s du -sh %s", sc.app.RemoteHost, sc.app.RemotePath)
+	sizeOut, err := exec.Command("bash", "-c", sizeCmd).Output()
+	if err != nil {
+		return -1, ""
+	}
+	sizeFields := strings.Fields(strings.TrimSpace(string(sizeOut)))
+	totalSize := "unknown"
+	if len(sizeFields) > 0 {
+		totalSize = sizeFields[0]
+	}
+
+	// List subdirectories and count old ones in Go
+	listCmd := fmt.Sprintf("ssh otto@%s ls -1d %s/*/", sc.app.RemoteHost, sc.app.RemotePath)
+	listOut, err := exec.Command("bash", "-c", listCmd).Output()
+	if err != nil {
+		return 0, totalSize
+	}
+
+	count := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(listOut)), "\n") {
+		dir := strings.TrimSuffix(strings.TrimSpace(line), "/")
+		parts := strings.Split(dir, "/")
+		name := parts[len(parts)-1]
+		if name == sc.app.CurrentDirName || name == "previous" || name == currentTarget {
+			continue
+		}
+		count++
+	}
+
+	return count, totalSize
+}
+
+func (sc *StatusCard) checkHealth() (int, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(sc.app.HealthCheckUrl)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode, nil
 }
 
 func (sc *StatusCard) getLocalRevision() string {

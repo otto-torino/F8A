@@ -42,7 +42,10 @@ func HandleAddWebApp() {
 		hasHtAccess = b
 		fmt.Println(hasHtAccess)
 	})
-	grid := container.New(layout.NewFormLayout(), labelName, name, labelPath, localPath, labelDistDirName, localDistDirName, labelRemoteHost, remoteHost, labelRemotePath, remotePath, labelCurrentDirName, currentDirName, hasHtAccessLabel, hasHtAccessWidget)
+	labelHealthCheckUrl := widget.NewLabel("Health Check URL")
+	healthCheckUrl := widget.NewEntry()
+	healthCheckUrl.SetPlaceHolder("https://example.com (optional)")
+	grid := container.New(layout.NewFormLayout(), labelName, name, labelPath, localPath, labelDistDirName, localDistDirName, labelRemoteHost, remoteHost, labelRemotePath, remotePath, labelCurrentDirName, currentDirName, hasHtAccessLabel, hasHtAccessWidget, labelHealthCheckUrl, healthCheckUrl)
 
 	addButton := widget.NewButton("Save", func() {
 		if name.Text == "" || localPath.Text == "" || remotePath.Text == "" || remoteHost.Text == "" {
@@ -50,7 +53,7 @@ func HandleAddWebApp() {
 			errorText.Refresh()
 			return
 		}
-		id, err := models.CreateApp(name.Text, localPath.Text, localDistDirName.Text, remoteHost.Text, remotePath.Text, currentDirName.Text, hasHtAccess)
+		id, err := models.CreateApp(name.Text, localPath.Text, localDistDirName.Text, remoteHost.Text, remotePath.Text, currentDirName.Text, hasHtAccess, healthCheckUrl.Text)
 		if err != nil {
 			errorText.Text = err.Error()
 			errorText.Refresh()
@@ -99,7 +102,11 @@ func HandleChangeWebApp(id int) {
 		fmt.Println(hasHtAccess)
 	})
 	hasHtAccessWidget.SetChecked(hasHtAccess)
-	grid := container.New(layout.NewFormLayout(), labelName, name, labelPath, localPath, labelDistDirName, localDistDirName, labelRemoteHost, remoteHost, labelRemotePath, remotePath, labelCurrentDirName, currentDirName, hasHtAccessLabel, hasHtAccessWidget)
+	labelHealthCheckUrl := widget.NewLabel("Health Check URL")
+	healthCheckUrl := widget.NewEntry()
+	healthCheckUrl.SetText(app.HealthCheckUrl)
+	healthCheckUrl.SetPlaceHolder("https://example.com (optional)")
+	grid := container.New(layout.NewFormLayout(), labelName, name, labelPath, localPath, labelDistDirName, localDistDirName, labelRemoteHost, remoteHost, labelRemotePath, remotePath, labelCurrentDirName, currentDirName, hasHtAccessLabel, hasHtAccessWidget, labelHealthCheckUrl, healthCheckUrl)
 
 	changeButton := widget.NewButton("Save", func() {
 		if name.Text == "" || localPath.Text == "" || remotePath.Text == "" || remoteHost.Text == "" {
@@ -107,7 +114,7 @@ func HandleChangeWebApp(id int) {
 			errorText.Refresh()
 			return
 		}
-		err := models.UpdateApp(id, name.Text, localPath.Text, localDistDirName.Text, remoteHost.Text, remotePath.Text, currentDirName.Text, hasHtAccess)
+		err := models.UpdateApp(id, name.Text, localPath.Text, localDistDirName.Text, remoteHost.Text, remotePath.Text, currentDirName.Text, hasHtAccess, healthCheckUrl.Text)
 		if err != nil {
 			errorText.Text = err.Error()
 			errorText.Refresh()
@@ -164,7 +171,12 @@ func HandleWebAppSection(id int) {
 		hasHtAccessStr = "yes"
 	}
 	hasHtAccess := widget.NewLabel(hasHtAccessStr)
-	infoGrid := container.New(layout.NewFormLayout(), nameLabel, name, localPathLabel, localPath, localDistDirNameLabel, localDistDirName, remoteHostLabel, remoteHost, remotePathLabel, remotePath, currentDirNameLabel, currentDirName, hasHtAccessLabel, hasHtAccess)
+	healthCheckUrlLabel := widget.NewLabel("Health Check URL")
+	healthCheckUrlValue := widget.NewLabel(app.HealthCheckUrl)
+	if app.HealthCheckUrl == "" {
+		healthCheckUrlValue.SetText("not configured")
+	}
+	infoGrid := container.New(layout.NewFormLayout(), nameLabel, name, localPathLabel, localPath, localDistDirNameLabel, localDistDirName, remoteHostLabel, remoteHost, remotePathLabel, remotePath, currentDirNameLabel, currentDirName, hasHtAccessLabel, hasHtAccess, healthCheckUrlLabel, healthCheckUrlValue)
 
 	top := container.NewVBox(header, statusCard, infoGrid)
 
@@ -227,5 +239,11 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container, statusC
 	}
 	restore := utils.MakeButton("Restore Revision", commands.Restore(app, onRestoreComplete))
 
-	return container.NewHBox(build, buildArchive, restore, deploy)
+	// Prune button
+	onPruneComplete := func() {
+		statusCard.UpdateStatus()
+	}
+	prune := utils.MakeButton("Prune", commands.Prune(app, onPruneComplete))
+
+	return container.NewHBox(build, buildArchive, restore, deploy, prune)
 }

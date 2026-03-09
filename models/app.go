@@ -14,14 +14,15 @@ type App struct {
 	RemotePath       string `sql:"remote_path"`
 	CurrentDirName   string `sql:"current_dir_name"`
 	HasHtAccess      int    `sql:"has_htaccess"`
+	HealthCheckUrl   string `sql:"health_check_url"`
 }
 
-func CreateApp(name string, localPath string, localDistDirName string, remoteHost string, remotePath string, currentDirName string, hasHtAccess bool) (int64, error) {
+func CreateApp(name string, localPath string, localDistDirName string, remoteHost string, remotePath string, currentDirName string, hasHtAccess bool, healthCheckUrl string) (int64, error) {
 	hasHtAccessInt := 0
 	if hasHtAccess {
 		hasHtAccessInt = 1
 	}
-	result, err := db.DB().C.Exec("INSERT INTO apps (name, local_path, local_dist_dir_name, remote_host, remote_path, current_dir_name, has_htaccess) VALUES (?, ?, ?, ?, ?, ?, ?)", name, localPath, localDistDirName, remoteHost, remotePath, currentDirName, hasHtAccessInt)
+	result, err := db.DB().C.Exec("INSERT INTO apps (name, local_path, local_dist_dir_name, remote_host, remote_path, current_dir_name, has_htaccess, health_check_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", name, localPath, localDistDirName, remoteHost, remotePath, currentDirName, hasHtAccessInt, healthCheckUrl)
 	if err != nil {
 		logger.ZapLog.Error("Cannot create app", err)
 		return 0, err
@@ -30,12 +31,12 @@ func CreateApp(name string, localPath string, localDistDirName string, remoteHos
 	return lastId, nil
 }
 
-func UpdateApp(id int, name string, localPath string, localDistDirName string, remoteHost string, remotePath string, currentDirName string, hasHtAccess bool) error {
+func UpdateApp(id int, name string, localPath string, localDistDirName string, remoteHost string, remotePath string, currentDirName string, hasHtAccess bool, healthCheckUrl string) error {
 	hasHtAccessInt := 0
 	if hasHtAccess {
 		hasHtAccessInt = 1
 	}
-	_, err := db.DB().C.Exec("UPDATE apps SET name = ?, local_path = ?, local_dist_dir_name = ?, remote_host = ?, remote_path = ?, current_dir_name = ?, has_htaccess = ? WHERE id = ?", name, localPath, localDistDirName, remoteHost, remotePath, currentDirName, hasHtAccessInt, id)
+	_, err := db.DB().C.Exec("UPDATE apps SET name = ?, local_path = ?, local_dist_dir_name = ?, remote_host = ?, remote_path = ?, current_dir_name = ?, has_htaccess = ?, health_check_url = ? WHERE id = ?", name, localPath, localDistDirName, remoteHost, remotePath, currentDirName, hasHtAccessInt, healthCheckUrl, id)
 	if err != nil {
 		logger.ZapLog.Error("Cannot update app", err)
 		return err
@@ -45,7 +46,7 @@ func UpdateApp(id int, name string, localPath string, localDistDirName string, r
 
 func GetApps() ([]App, error) {
 	apps := []App{}
-	stm, err := db.DB().C.Prepare("SELECT id, name, local_path, local_dist_dir_name, remote_host, remote_path, current_dir_name, has_htaccess FROM apps")
+	stm, err := db.DB().C.Prepare("SELECT id, name, local_path, local_dist_dir_name, remote_host, remote_path, current_dir_name, has_htaccess, health_check_url FROM apps")
 	if err != nil {
 		logger.ZapLog.Error("Cannot get apps", err)
 		return nil, err
@@ -57,7 +58,7 @@ func GetApps() ([]App, error) {
 	} else {
 		for rows.Next() {
 			var app App
-			rows.Scan(&app.ID, &app.Name, &app.LocalPath, &app.LocalDistDirName, &app.RemoteHost, &app.RemotePath, &app.CurrentDirName, &app.HasHtAccess)
+			rows.Scan(&app.ID, &app.Name, &app.LocalPath, &app.LocalDistDirName, &app.RemoteHost, &app.RemotePath, &app.CurrentDirName, &app.HasHtAccess, &app.HealthCheckUrl)
 			apps = append(apps, app)
 		}
 		return apps, nil
@@ -66,12 +67,12 @@ func GetApps() ([]App, error) {
 
 func GetApp(id int) (*App, error) {
 	app := App{}
-	stm, err := db.DB().C.Prepare("SELECT id, name, local_path, local_dist_dir_name, remote_host, remote_path, current_dir_name, has_htaccess FROM apps WHERE id = ?")
+	stm, err := db.DB().C.Prepare("SELECT id, name, local_path, local_dist_dir_name, remote_host, remote_path, current_dir_name, has_htaccess, health_check_url FROM apps WHERE id = ?")
 	if err != nil {
 		logger.ZapLog.Error("Cannot get app", err)
 		return nil, err
 	}
-	err = stm.QueryRow(id).Scan(&app.ID, &app.Name, &app.LocalPath, &app.LocalDistDirName, &app.RemoteHost, &app.RemotePath, &app.CurrentDirName, &app.HasHtAccess)
+	err = stm.QueryRow(id).Scan(&app.ID, &app.Name, &app.LocalPath, &app.LocalDistDirName, &app.RemoteHost, &app.RemotePath, &app.CurrentDirName, &app.HasHtAccess, &app.HealthCheckUrl)
 	if err != nil {
 		logger.ZapLog.Error("Cannot get app", err)
 		return nil, err

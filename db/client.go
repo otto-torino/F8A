@@ -111,6 +111,14 @@ UPDATE apps SET local_dist_dir_name = "dist" WHERE local_dist_dir_name IS NULL O
 	}
 
 	stmt = `
+ALTER TABLE apps ADD COLUMN health_check_url TEXT DEFAULT "";
+		`
+	_, err = client.C.Exec(stmt)
+	if err != nil {
+		// do nothing
+	}
+
+	stmt = `
 CREATE TABLE IF NOT EXISTS deployments (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	app_id INTEGER NOT NULL,

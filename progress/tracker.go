@@ -47,31 +47,36 @@ type DeploymentProgress struct {
 
 // Step names constants
 const (
-	StepBuild    = "build"
-	StepArchive  = "archive"
-	StepUpload   = "upload"
-	StepBackup   = "backup"
-	StepExtract  = "extract"
-	StepActivate = "activate"
-	StepCleanup  = "cleanup"
+	StepBuild       = "build"
+	StepArchive     = "archive"
+	StepUpload      = "upload"
+	StepBackup      = "backup"
+	StepExtract     = "extract"
+	StepActivate    = "activate"
+	StepCleanup     = "cleanup"
+	StepHealthCheck = "health_check"
 )
 
-func NewDeploymentProgress(deploymentID int64, appID int, commitHash string) *DeploymentProgress {
+func NewDeploymentProgress(deploymentID int64, appID int, commitHash string, healthCheckUrl string) *DeploymentProgress {
+	steps := []Step{
+		{Name: StepBuild, Description: "Building application", Status: StepPending},
+		{Name: StepArchive, Description: "Creating archive", Status: StepPending},
+		{Name: StepUpload, Description: "Uploading to server", Status: StepPending},
+		{Name: StepBackup, Description: "Backing up current version", Status: StepPending},
+		{Name: StepExtract, Description: "Extracting archive", Status: StepPending},
+		{Name: StepActivate, Description: "Activating new version", Status: StepPending},
+		{Name: StepCleanup, Description: "Cleaning up", Status: StepPending},
+	}
+	if healthCheckUrl != "" {
+		steps = append(steps, Step{Name: StepHealthCheck, Description: "Health check", Status: StepPending})
+	}
 	return &DeploymentProgress{
 		DeploymentID:  deploymentID,
 		AppID:         appID,
 		CommitHash:    commitHash,
 		StartTime:     time.Now(),
 		UpdateChannel: make(chan StepUpdate, 10),
-		Steps: []Step{
-			{Name: StepBuild, Description: "Building application", Status: StepPending},
-			{Name: StepArchive, Description: "Creating archive", Status: StepPending},
-			{Name: StepUpload, Description: "Uploading to server", Status: StepPending},
-			{Name: StepBackup, Description: "Backing up current version", Status: StepPending},
-			{Name: StepExtract, Description: "Extracting archive", Status: StepPending},
-			{Name: StepActivate, Description: "Activating new version", Status: StepPending},
-			{Name: StepCleanup, Description: "Cleaning up", Status: StepPending},
-		},
+		Steps:         steps,
 	}
 }
 

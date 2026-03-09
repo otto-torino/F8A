@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"net/http"
 	"os/exec"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func Deploy(app *models.App, outputContainer *fyne.Container, onComplete func())
 	}
 
 	// Initialize progress tracker
-	tracker := progress.NewDeploymentProgress(deploymentID, app.ID, commitHash)
+	tracker := progress.NewDeploymentProgress(deploymentID, app.ID, commitHash, app.HealthCheckUrl)
 	tracker.LoadAverageDurations()
 
 	return tracker, func() {
@@ -157,7 +158,32 @@ func deployWithProgress(app *models.App, commitHash string, tracker *progress.De
 		return err
 	}
 
+	// Step 8: Health check (only if URL is configured)
+	if app.HealthCheckUrl != "" {
+		tracker.StartStep(progress.StepHealthCheck)
+		healthOut, healthErr := performHealthCheck(app.HealthCheckUrl)
+		tracker.CompleteStep(progress.StepHealthCheck, healthErr == nil, healthOut, healthErr)
+		if healthErr != nil {
+			return healthErr
+		}
+	}
+
 	return nil
+}
+
+func performHealthCheck(url string) (string, error) {
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Sprintf("Health check failed: %s", err.Error()), fmt.Errorf("health check request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	result := fmt.Sprintf("GET %s -> %d %s", url, resp.StatusCode, resp.Status)
+	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+		return result, nil
+	}
+	return result, fmt.Errorf("health check failed with status %d", resp.StatusCode)
 }
 
 func Restore(app *models.App, onSuccess func()) func() {
