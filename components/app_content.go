@@ -214,22 +214,24 @@ func MakeActionButtons(app *models.App, outputContainer *fyne.Container, statusC
 	}
 
 	deploy := utils.MakeButton("Deploy", func() {
-		tracker, deployCallback := commands.Deploy(app, outputContainer, onComplete)
-		if tracker != nil && deployCallback != nil {
-			// Setup ProgressPanel
-			progressPanel := NewProgressPanel(app.ID, tracker.Steps)
+		commands.ShowDiffPreview(app, func() {
+			tracker, deployCallback := commands.Deploy(app, outputContainer, onComplete)
+			if tracker != nil && deployCallback != nil {
+				// Setup ProgressPanel
+				progressPanel := NewProgressPanel(app.ID, tracker.Steps)
 
-			// Re-setup outputContainer to show ProgressPanel
-			outputContainer.RemoveAll()
-			outputContainer.Add(progressPanel)
-			outputContainer.Refresh()
+				// Re-setup outputContainer to show ProgressPanel
+				outputContainer.RemoveAll()
+				outputContainer.Add(progressPanel)
+				outputContainer.Refresh()
 
-			// Listen to updates
-			progressPanel.Listen(tracker.UpdateChannel)
+				// Listen to updates
+				progressPanel.Listen(tracker.UpdateChannel)
 
-			// Start deployment
-			deployCallback()
-		}
+				// Start deployment
+				deployCallback()
+			}
+		})
 	})
 
 	// Restore button
