@@ -39,7 +39,7 @@ func HandleHomeSection() {
 		mainContent.RemoveAll()
 	}
 
-	text1 := canvas.NewText("Otto Frontend Apps Manager", color.White)
+	text1 := canvas.NewText(utils.AppTitle, color.White)
 	text1.TextSize = 18
 	text2 := canvas.NewText("Developed by Otto srl", color.White)
 

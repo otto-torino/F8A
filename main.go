@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/otto-torino/f8a/components"
 	"github.com/otto-torino/f8a/db"
 	"github.com/otto-torino/f8a/logger"
@@ -41,8 +42,14 @@ func main() {
 
 	registry := utils.Registry()
 
-	a := app.NewWithID("io.otto-torino.f8a")
-	w := a.NewWindow("Otto Frontend Apps Manager")
+	a := app.NewWithID(utils.AppID)
+	w := a.NewWindow(utils.AppTitle)
+	// Fyne sets no X11 class hint, so GLFW would use the window title as
+	// WM_CLASS. NewWindow has already initialised GLFW while the native window
+	// is only created on Show, so the hints set here apply to it. They are
+	// ignored on non-X11 platforms.
+	glfw.WindowHintString(glfw.X11ClassName, utils.AppName)
+	glfw.WindowHintString(glfw.X11InstanceName, utils.AppName)
 	registry.Application = &a
 	registry.Window = &w
 

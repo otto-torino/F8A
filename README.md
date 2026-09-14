@@ -14,17 +14,25 @@ Stack:
 - fyne CLI: `go install fyne.io/tools/cmd/fyne@latest`
 - Build dependencies (Debian/Ubuntu): `sudo apt install libgl1-mesa-dev xorg-dev libxkbcommon-dev`
 
-## Create package
-
-Build the binary first, then package it with fyne:
+## Build and package
 
 ```
-$ go build -o build/f8a .
-$ fyne package -os linux --name f8a --exe build/f8a --icon Icon.png
+$ make build      # build/f8a
+$ make package    # f8a.tar.xz, the distribution tarball
 ```
 
-Note: running `fyne package` without `--exe` builds the binary as `f8a` in the
-current directory, which fails if an extracted `f8a/` folder is present.
+`make package` runs `fyne package` and then fixes the generated tarball:
+
+- the `.desktop` file's `Name=` is set to the window title (`utils.AppTitle`),
+  since fyne uses `--name` for both the file names and the displayed name;
+- the tarball's `Makefile` is replaced with `packaging/Makefile`, which
+  installs the icon into the hicolor theme so it resolves by name.
+
+The window's X11 WM_CLASS is set to `f8a` in `main.go` (Fyne would otherwise
+use the window title), matching `f8a.desktop` so desktop environments show the
+icon on the running window.
+
+`make user-install` packages and installs into `~/.local` in one step.
 
 ## Install
 
@@ -55,7 +63,7 @@ yarn installed through nvm:
 
 
 ```
-$ tar xvf f8a.tar.gz
+$ tar xvf f8a.tar.xz
 $ cd f8a
 $ make user-install
 ```
