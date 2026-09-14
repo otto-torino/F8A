@@ -5,16 +5,36 @@ import (
 	"errors"
 	"image/color"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"github.com/spf13/viper"
 )
 
 const ShellToUse = "bash"
 
+// buildShellCommand prepends the optional "shell.init" snippet from the
+// settings file to the command. This lets commands run in a non-interactive
+// shell (e.g. when the app is launched from the desktop menu) find tools
+// that are only set up by shell init scripts, such as nvm-managed yarn.
+func buildShellCommand(command string) string {
+	initSnippet := strings.TrimSpace(viper.GetString("shell.init"))
+	if initSnippet == "" {
+		return command
+	}
+	return initSnippet + " && " + command
+}
+
+// shellCommand returns an exec.Cmd running the command through the shell,
+// including the configured init snippet.
+func shellCommand(command string) *exec.Cmd {
+	return exec.Command(ShellToUse, "-c", buildShellCommand(command))
+}
+
 func ExecCommand(command string) (string, error) {
-	cmd := exec.Command(ShellToUse, "-c", command)
+	cmd := shellCommand(command)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -31,7 +51,7 @@ func Shellout(description string, command string, outputContainer *fyne.Containe
 	if clear {
 		outputContainer.RemoveAll()
 	}
-	cmd := exec.Command(ShellToUse, "-c", command)
+	cmd := shellCommand(command)
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
 	AddTextToOutput("Executing: "+description, color.RGBA{R: 255, G: 153, B: 0, A: 255}, outputContainer)
@@ -78,7 +98,7 @@ func Shellout(description string, command string, outputContainer *fyne.Containe
 
 func Shell(command string) (*[]string, error) {
 	output := []string{}
-	cmd := exec.Command(ShellToUse, "-c", command)
+	cmd := shellCommand(command)
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
 	err := cmd.Start()
